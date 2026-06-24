@@ -101,14 +101,25 @@ Expected: 每条命令退出码为 `0`，`QingLi.sln` 包含四个项目。
 - [ ] **Step 2: 写入冒烟测试**
 
 ```csharp
+using System.Reflection;
+
 namespace QingLi.Core.Tests;
 
 public sealed class SmokeTests
 {
     [Fact]
-    public void Test_runner_is_available() => Assert.True(true);
+    public void Core_assembly_has_expected_identity()
+    {
+        var assembly = typeof(QingLi.Core.AssemblyMarker).Assembly;
+
+        Assert.Equal("QingLi.Core", assembly.GetName().Name);
+        Assert.Equal(new Version(0, 1, 0), assembly.GetName().Version);
+        Assert.Equal("QingLi.Core", assembly.GetCustomAttribute<AssemblyProductAttribute>()?.Product);
+    }
 }
 ```
+
+`QingLi.Core.AssemblyMarker` 是空的公开标记类型，只用于提供稳定的程序集入口。`Directory.Build.props` 将 `Version` 固定为 `0.1.0`，将 `Product` 固定为当前项目名，并为所有项目启用 nullable、隐式 using、警告视为错误和确定性构建。
 
 - [ ] **Step 3: 运行测试**
 
