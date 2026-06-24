@@ -1,15 +1,31 @@
+using QingLi.Core.Calendars;
+
 namespace QingLi.Core.Birthdays;
 
 public sealed class BirthdayOccurrenceService
 {
+    private readonly LunarCalendarService _lunarCalendarService;
+
+    public BirthdayOccurrenceService(LunarCalendarService? lunarCalendarService = null)
+    {
+        _lunarCalendarService = lunarCalendarService ?? new LunarCalendarService();
+    }
+
     public DateOnly GetOccurrence(Birthday birthday, int year)
     {
-        if (birthday.CalendarKind != BirthdayCalendarKind.Gregorian)
+        if (birthday.CalendarKind == BirthdayCalendarKind.Gregorian)
         {
-            throw new NotSupportedException("Lunar birthdays are implemented separately.");
+            var day = Math.Min(birthday.Day, DateTime.DaysInMonth(year, birthday.Month));
+            return new DateOnly(year, birthday.Month, day);
         }
 
-        var day = Math.Min(birthday.Day, DateTime.DaysInMonth(year, birthday.Month));
-        return new DateOnly(year, birthday.Month, day);
+        try
+        {
+            return _lunarCalendarService.ToGregorian(year, birthday.Month, birthday.Day, birthday.IsLeapMonth);
+        }
+        catch (ArgumentOutOfRangeException) when (birthday.IsLeapMonth)
+        {
+            return _lunarCalendarService.ToGregorian(year, birthday.Month, birthday.Day, false);
+        }
     }
 }
