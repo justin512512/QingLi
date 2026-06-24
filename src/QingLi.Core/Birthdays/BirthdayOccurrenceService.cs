@@ -23,7 +23,8 @@ public sealed class BirthdayOccurrenceService
         {
             return _lunarCalendarService.ToGregorian(year, birthday.Month, birthday.Day, birthday.IsLeapMonth);
         }
-        catch (ArgumentOutOfRangeException) when (birthday.IsLeapMonth)
+        catch (ArgumentOutOfRangeException exception)
+            when (birthday.IsLeapMonth && exception.ParamName == LunarCalendarService.LeapMonthParameterName)
         {
             return _lunarCalendarService.ToGregorian(year, birthday.Month, birthday.Day, false);
         }

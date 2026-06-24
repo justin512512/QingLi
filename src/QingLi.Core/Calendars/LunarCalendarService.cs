@@ -4,6 +4,8 @@ namespace QingLi.Core.Calendars;
 
 public sealed class LunarCalendarService
 {
+    public const string LeapMonthParameterName = "isLeapMonth";
+
     private readonly ChineseLunisolarCalendar _calendar = new();
 
     public LunarDate FromGregorian(DateOnly date)
@@ -22,6 +24,11 @@ public sealed class LunarCalendarService
 
     public DateOnly ToGregorian(int year, int month, int day, bool isLeapMonth)
     {
+        if (day is < 1 or > 30)
+        {
+            throw new ArgumentOutOfRangeException(nameof(day));
+        }
+
         var leapMonth = _calendar.GetLeapMonth(year);
         var rawMonth = month;
 
@@ -29,7 +36,7 @@ public sealed class LunarCalendarService
         {
             if (leapMonth <= 0 || leapMonth != month + 1)
             {
-                throw new ArgumentOutOfRangeException(nameof(isLeapMonth));
+                throw new ArgumentOutOfRangeException(LeapMonthParameterName);
             }
 
             rawMonth = leapMonth;

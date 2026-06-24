@@ -53,4 +53,18 @@ public sealed class BirthdayOccurrenceServiceTests
         Assert.Equal(new DateOnly(2027, 7, 3), actual);
         Assert.Equal(new LunarDate(2027, 5, 29, false), new LunarCalendarService().FromGregorian(actual));
     }
+
+    [Fact]
+    public void Lunar_day_31_in_missing_leap_month_throws_instead_of_falling_back()
+    {
+        var birthday = new Birthday(Guid.NewGuid(), "\u5C0F\u51AC",
+            BirthdayCalendarKind.Lunar, 2028, 5, 31, true, 2,
+            new TimeOnly(8, 30), null, true);
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            "day",
+            () => new BirthdayOccurrenceService(new LunarCalendarService()).GetOccurrence(birthday, 2027));
+
+        Assert.Equal("day", exception.ParamName);
+    }
 }

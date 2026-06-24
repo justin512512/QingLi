@@ -28,4 +28,20 @@ public sealed class LunarCalendarServiceTests
         Assert.Equal(new LunarDate(lunarYear, lunarMonth, lunarDay, isLeapMonth), lunar);
         Assert.Equal(gregorian, _service.ToGregorian(lunarYear, lunarMonth, lunarDay, isLeapMonth));
     }
+
+    [Theory]
+    [InlineData(2027, 5, 31, false)]
+    [InlineData(2027, 5, 31, true)]
+    public void ToGregorian_rejects_day_31_with_accurate_param_name(
+        int lunarYear,
+        int lunarMonth,
+        int lunarDay,
+        bool isLeapMonth)
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            "day",
+            () => _service.ToGregorian(lunarYear, lunarMonth, lunarDay, isLeapMonth));
+
+        Assert.Equal("day", exception.ParamName);
+    }
 }
