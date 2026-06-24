@@ -2,15 +2,18 @@ namespace QingLi.Core.Calendars;
 
 public sealed class SolarTermService
 {
+    public const int MinSupportedYear = 1901;
+    public const int MaxSupportedYear = 2100;
+
     public string? GetName(DateOnly date)
     {
-        if (date.Year is < 1901 or > 2100)
+        if (date.Year is < MinSupportedYear or > MaxSupportedYear)
         {
             return null;
         }
 
         var termIndex = (date.Month - 1) * 2;
-        var encodedDays = DayTable[date.Year - 1901];
+        var encodedDays = DayTable[date.Year - MinSupportedYear];
 
         return date.Day switch
         {
@@ -227,6 +230,14 @@ public sealed class SolarTermService
         "041903180520041904200520062206220722072206210621",
         "051903180520041905200521062207220722082307220621",
         "052003180520042005210521072207230723082307220721",
-        "052004180520052005210521072307230723082307220722"
+        "052004180520052005210521072307230723082307220722",
+        "041903180520041905200520062207220722072206210621",
+        "051903180520041905200521062207220722082307220621",
+        "052003180520042005210521072207230723082307220721",
+        "052004180419041904200420062206220622072206210621",
+        "041903180520041904200520062206220722072206210621",
+        "051903180520041905200521062207220722082307220621",
+        "052003180520042005210521072207230723082307220721",
+        "052004180520052005210521072307230723082307220722",
     ];
 }

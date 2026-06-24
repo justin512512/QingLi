@@ -1,5 +1,5 @@
-using QingLi.Infrastructure.Holidays;
 using QingLi.Core.Holidays;
+using QingLi.Infrastructure.Holidays;
 
 namespace QingLi.Infrastructure.Tests.Holidays;
 
@@ -10,7 +10,7 @@ public sealed class JsonHolidayProviderTests
     {
         var provider = new JsonHolidayProvider();
 
-        var package = await provider.ReadAsync(GetHolidayAssetPath());
+        var package = await provider.ReadAsync(GetHolidaySourceAssetPath());
 
         Assert.Equal("CN", package.Country);
         Assert.Equal(2026, package.Year);
@@ -25,7 +25,7 @@ public sealed class JsonHolidayProviderTests
     {
         var provider = new JsonHolidayProvider();
 
-        var package = await provider.ReadAsync(GetHolidayAssetPath());
+        var package = await provider.ReadAsync(GetHolidaySourceAssetPath());
         var uniqueDates = package.Days.Select(x => x.Date).Distinct().Count();
         var makeupWorkdays = package.Days.Where(x => x.IsWorkday).Select(x => x.Date).Order().ToArray();
 
@@ -53,7 +53,42 @@ public sealed class JsonHolidayProviderTests
             makeupWorkdays);
     }
 
-    private static string GetHolidayAssetPath()
+    [Fact]
+    public async Task Windows_build_output_contains_holiday_asset_readable_by_provider()
+    {
+        var root = GetRepositoryRoot();
+        var assetPath = Path.Combine(
+            root,
+            "src",
+            "QingLi.Windows",
+            "bin",
+            "Debug",
+            "net8.0-windows",
+            "Assets",
+            "Holidays",
+            "cn-2026.json");
+
+        Assert.True(File.Exists(assetPath), assetPath);
+
+        var provider = new JsonHolidayProvider();
+        var package = await provider.ReadAsync(assetPath);
+
+        Assert.Equal("CN", package.Country);
+        Assert.Contains(package.Days, x => x.Date == new DateOnly(2026, 10, 1) && x.Name == "国庆节");
+    }
+
+    private static string GetHolidaySourceAssetPath()
+    {
+        return Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "QingLi.Windows",
+            "Assets",
+            "Holidays",
+            "cn-2026.json");
+    }
+
+    private static string GetRepositoryRoot()
     {
         return Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
@@ -61,12 +96,7 @@ public sealed class JsonHolidayProviderTests
             "..",
             "..",
             "..",
-            "..",
-            "src",
-            "QingLi.Windows",
-            "Assets",
-            "Holidays",
-            "cn-2026.json"));
+            ".."));
     }
 
     private static void AssertHolidayRange(

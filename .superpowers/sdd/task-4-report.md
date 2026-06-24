@@ -81,3 +81,68 @@
 - 2026 节假日 JSON 含 `sourceUrl`、`sourceTitle`、`publishedAt`
 - 调休上班日均使用对应节日名称，且 `isWorkday = true`
 - 未改动计划文件内容，未回退他人改动
+
+## Review fix: SolarTermService year coverage and Windows asset build output
+
+### Root cause
+
+- `SolarTermService` 声明支持 `1901..2100`，但 `DayTable` 实际只有 `192` 行，覆盖到 `2092` 就结束；查询 `2093..2100` 会在 `date.Year - 1901` 索引时越界。
+- 原有节气测试只校验了 `2026` 的两个已知日期，没有守住声明边界，也没有对整段支持区间做结构性回归。
+- `cn-2026.json` 的读取测试只依赖源码路径，不能证明 Windows 项目构建产物里真的复制了该资源。
+
+### RED
+
+#### 1. 节气边界 / 结构性回归
+
+- 命令：
+  - `dotnet test tests/QingLi.Core.Tests/QingLi.Core.Tests.csproj --filter "Boundary_years_expose_24_solar_terms_without_throwing|Declared_supported_range_has_200_years_and_each_year_returns_24_terms|Returns_known_solar_terms"`
+- 首次结果：
+  - 编译失败：`SolarTermService` 不包含 `MinSupportedYear` / `MaxSupportedYear`（`CS0117`）
+
+#### 2. Windows 构建输出中的节假日数据文件
+
+- 命令：
+  - `dotnet test tests/QingLi.Infrastructure.Tests/QingLi.Infrastructure.Tests.csproj --filter Windows_build_output_contains_holiday_asset_readable_by_provider`
+- 首次结果：
+  - 失败：测试内直接启动 `dotnet` 进程时找不到可执行文件
+
+### GREEN
+
+#### 1. 节气覆盖修复
+
+- 变更：
+  - 新增 `SolarTermService.MinSupportedYear` / `MaxSupportedYear`
+  - 将 `TermNames` 修正为正常 UTF-8 中文
+  - 用同一生成规则补齐 `2093..2100` 的 8 个年度条目
+  - `DayTable` 总数从 `192` 补到 `200`
+- 复跑命令：
+  - `dotnet test tests/QingLi.Core.Tests/QingLi.Core.Tests.csproj --filter "Boundary_years_expose_24_solar_terms_without_throwing|Declared_supported_range_has_200_years_and_each_year_returns_24_terms|Returns_known_solar_terms"`
+- 结果：
+  - `通过 7 / 7`
+
+#### 2. Windows 输出资源复制验证
+
+- 变更：
+  - 在 `tests/QingLi.Infrastructure.Tests/QingLi.Infrastructure.Tests.csproj` 新增 `BuildQingLiWindowsForArtifactChecks`，于 `VSTest` 前构建 `src/QingLi.Windows/QingLi.Windows.csproj`
+  - 新增测试 `Windows_build_output_contains_holiday_asset_readable_by_provider`
+  - 测试读取 `src/QingLi.Windows/bin/Debug/net8.0-windows/Assets/Holidays/cn-2026.json`，不再把源码相对路径作为唯一证据
+- 复跑命令：
+  - `dotnet test tests/QingLi.Infrastructure.Tests/QingLi.Infrastructure.Tests.csproj --filter Windows_build_output_contains_holiday_asset_readable_by_provider`
+- 结果：
+  - `通过 1 / 1`
+
+### Final verification after review fix
+
+- 聚焦测试
+  - `dotnet test tests/QingLi.Core.Tests/QingLi.Core.Tests.csproj --filter "Boundary_years_expose_24_solar_terms_without_throwing|Declared_supported_range_has_200_years_and_each_year_returns_24_terms|Returns_known_solar_terms"`
+    - `通过 7 / 7`
+  - `dotnet test tests/QingLi.Infrastructure.Tests/QingLi.Infrastructure.Tests.csproj --filter Windows_build_output_contains_holiday_asset_readable_by_provider`
+    - `通过 1 / 1`
+- 分项目测试
+  - `dotnet test tests/QingLi.Core.Tests/QingLi.Core.Tests.csproj`
+    - `通过 21 / 21`
+  - `dotnet test tests/QingLi.Infrastructure.Tests/QingLi.Infrastructure.Tests.csproj`
+    - `通过 3 / 3`
+- Solution 测试
+  - `dotnet test QingLi.sln`
+    - `通过 24 / 24`

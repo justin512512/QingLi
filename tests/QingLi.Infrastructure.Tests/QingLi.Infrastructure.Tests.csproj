@@ -25,4 +25,10 @@
     <ProjectReference Include="..\..\src\QingLi.Infrastructure\QingLi.Infrastructure.csproj" />
   </ItemGroup>
 
+  <Target Name="BuildQingLiWindowsForArtifactChecks" BeforeTargets="VSTest">
+    <MSBuild Projects="..\..\src\QingLi.Windows\QingLi.Windows.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
+
 </Project>
