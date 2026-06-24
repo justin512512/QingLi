@@ -23,6 +23,19 @@ public sealed class DatabaseMigrator(SqliteConnectionFactory connectionFactory)
           notes TEXT NULL,
           is_enabled INTEGER NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS reminder_history (
+          birthday_id TEXT NOT NULL,
+          scheduled_at TEXT NOT NULL,
+          occurrence_date TEXT NOT NULL,
+          sent_at TEXT NOT NULL,
+          PRIMARY KEY (birthday_id, scheduled_at)
+        );
+
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
         """;
 
     public async Task<DatabaseMigrationResult> TryMigrateAsync(CancellationToken cancellationToken)
