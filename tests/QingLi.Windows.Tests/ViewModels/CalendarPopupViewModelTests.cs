@@ -13,7 +13,7 @@ public sealed class CalendarPopupViewModelTests
         var vm = CalendarPopupFixture.Create(today: new DateOnly(2026, 6, 24));
 
         await vm.InitializeAsync();
-        vm.NextMonthCommand.Execute(null);
+        await vm.NextMonthCommand.ExecuteAsync();
 
         Assert.Equal(7, vm.DisplayMonth.Month);
         Assert.Equal(42, vm.Days.Count);

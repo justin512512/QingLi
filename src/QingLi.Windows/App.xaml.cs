@@ -1,5 +1,4 @@
 using System.IO;
-using System.Linq;
 using System.Windows;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
@@ -24,13 +23,25 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-        _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
-        _trayIconService = new TrayIconService(
-            ToggleCalendar,
-            onAddBirthday: () => { },
-            onOpenSettings: () => { },
-            onPauseTodayReminders: () => { },
-            onExit: Shutdown);
+        try
+        {
+            _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
+            _trayIconService = new TrayIconService(
+                ToggleCalendar,
+                onAddBirthday: () => { },
+                onOpenSettings: () => { },
+                onPauseTodayReminders: () => { },
+                onExit: Shutdown);
+        }
+        catch (Exception exception)
+        {
+            System.Windows.MessageBox.Show(
+                $"轻历无法启动：{exception.Message}",
+                "轻历",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(-1);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -42,14 +53,22 @@ public partial class App : System.Windows.Application
 
     private async Task<CalendarPopupViewModel> CreateCalendarPopupViewModelAsync()
     {
-        var appDataDirectory = ResolveDataDirectory();
+        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var databasePath = AppPaths.GetDatabasePath(localApplicationData);
+        var databaseDirectory = Path.GetDirectoryName(databasePath)
+            ?? throw new InvalidOperationException("Unable to resolve the QingLi data directory.");
 
-        var databasePath = Path.Combine(appDataDirectory, "qingli.db");
+        Directory.CreateDirectory(databaseDirectory);
         var connectionFactory = new SqliteConnectionFactory(databasePath);
-        await new DatabaseMigrator(connectionFactory).TryMigrateAsync(CancellationToken.None)
-            .ConfigureAwait(false);
+        var migrationResult = await new DatabaseMigrator(connectionFactory).TryMigrateAsync(CancellationToken.None);
 
-        var holidayDefinitions = await LoadHolidayDefinitionsAsync().ConfigureAwait(false);
+        if (!migrationResult.IsWritable)
+        {
+            throw new InvalidOperationException(
+                migrationResult.ErrorMessage ?? "Unable to initialize the QingLi database.");
+        }
+
+        var holidayDefinitions = await LoadHolidayDefinitionsAsync();
         var calendarMonthService = new CalendarMonthService(
             new LunarCalendarService(),
             new SolarTermService(),
@@ -62,31 +81,8 @@ public partial class App : System.Windows.Application
             DateOnly.FromDateTime(DateTime.Today),
             DayOfWeek.Monday);
 
-        await viewModel.InitializeAsync().ConfigureAwait(false);
+        await viewModel.InitializeAsync();
         return viewModel;
-    }
-
-    private static string ResolveDataDirectory()
-    {
-        var preferredPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "QingLi");
-
-        try
-        {
-            Directory.CreateDirectory(preferredPath);
-            return preferredPath;
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-        catch (IOException)
-        {
-        }
-
-        var fallbackPath = Path.Combine(AppContext.BaseDirectory, "QingLiData");
-        Directory.CreateDirectory(fallbackPath);
-        return fallbackPath;
     }
 
     private static async Task<IReadOnlyList<HolidayDefinition>> LoadHolidayDefinitionsAsync()
@@ -99,7 +95,7 @@ public partial class App : System.Windows.Application
                 return [];
             }
 
-            var package = await new JsonHolidayProvider().ReadAsync(holidayPath).ConfigureAwait(false);
+            var package = await new JsonHolidayProvider().ReadAsync(holidayPath);
             return package.Days;
         }
         catch

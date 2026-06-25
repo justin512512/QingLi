@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Windows.Input;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
 
@@ -30,9 +29,9 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
         _today = today;
         _firstDayOfWeek = firstDayOfWeek;
 
-        PreviousMonthCommand = new RelayCommand(() => LoadMonthAsync(DisplayMonth.AddMonths(-1)).GetAwaiter().GetResult());
-        NextMonthCommand = new RelayCommand(() => LoadMonthAsync(DisplayMonth.AddMonths(1)).GetAwaiter().GetResult());
-        TodayCommand = new RelayCommand(() => LoadMonthAsync(new DateOnly(_today.Year, _today.Month, 1)).GetAwaiter().GetResult());
+        PreviousMonthCommand = new AsyncCommand(() => LoadMonthAsync(DisplayMonth.AddMonths(-1)));
+        NextMonthCommand = new AsyncCommand(() => LoadMonthAsync(DisplayMonth.AddMonths(1)));
+        TodayCommand = new AsyncCommand(() => LoadMonthAsync(new DateOnly(_today.Year, _today.Month, 1)));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -69,11 +68,11 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
         }
     }
 
-    public ICommand PreviousMonthCommand { get; }
+    public AsyncCommand PreviousMonthCommand { get; }
 
-    public ICommand NextMonthCommand { get; }
+    public AsyncCommand NextMonthCommand { get; }
 
-    public ICommand TodayCommand { get; }
+    public AsyncCommand TodayCommand { get; }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default) =>
         await LoadMonthAsync(new DateOnly(_today.Year, _today.Month, 1), cancellationToken);
@@ -82,8 +81,7 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
     {
         DisplayMonth = new DateOnly(month.Year, month.Month, 1);
 
-        var birthdays = await _birthdayRepository.ListAsync(null, DisplayMonth, cancellationToken)
-            .ConfigureAwait(false);
+        var birthdays = await _birthdayRepository.ListAsync(null, DisplayMonth, cancellationToken);
         var enabledBirthdays = birthdays.Where(birthday => birthday.IsEnabled).ToArray();
         var days = _calendarMonthService.Build(DisplayMonth.Year, DisplayMonth.Month, _firstDayOfWeek)
             .Select(day => new CalendarDayViewModel(day))
@@ -114,17 +112,4 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-
-    private sealed class RelayCommand(Action execute) : ICommand
-    {
-        event EventHandler? ICommand.CanExecuteChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public bool CanExecute(object? parameter) => true;
-
-        public void Execute(object? parameter) => execute();
-    }
 }

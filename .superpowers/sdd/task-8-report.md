@@ -1,29 +1,37 @@
 # Task 8 Report — Tray entry and calendar popup
 
-Status: done
+Status: needs-fixes-resolved
 
-Commit SHA: `b60286563d8c4640eb050635fa4ed4d71d24fbbd`
+Current commit SHA: pending final commit
 
-What changed:
+What changed in this repair round:
 
-- Added `CalendarPopupViewModel` with month navigation, `LoadMonthAsync`, and birthday merging via `BirthdayOccurrenceService`.
-- Added a Windows 11 style popup window with Esc / deactivated close and work-area positioning.
-- Added a WinForms `NotifyIcon` tray service with the exact right-click menu text from the brief.
-- Removed the template `MainWindow` and removed `StartupUri` so the app starts from the tray only.
-- Added a writable data-directory fallback for the sandboxed environment so startup can complete during smoke tests.
+- Removed the `AppContext.BaseDirectory\QingLiData` fallback.
+- Fixed database location to `%LOCALAPPDATA%\QingLi\qingli.db` through a testable helper.
+- Added startup failure handling that shows a clear error and shuts the app down.
+- Replaced synchronous month-navigation calls with a real async command implementation.
+- Removed `ConfigureAwait(false)` from the calendar load path so collection updates stay on the caller context.
+
+RED / GREEN:
+
+- RED: added `AppPathsTests` and `CalendarPopupAsyncCommandTests`; they failed immediately because `AppPaths` and `ExecuteAsync` did not exist.
+- RED: the delayed repository test exposed a queue-consumption bug in the test fixture.
+- GREEN: implemented `AppPaths.GetDatabasePath(...)`, `AsyncCommand`, and the startup failure path; updated the async test fixture and the existing month-navigation test to await the async command.
 
 Verification:
 
+- `dotnet test tests/QingLi.Windows.Tests/QingLi.Windows.Tests.csproj --filter "FullyQualifiedName~AppPathsTests|FullyQualifiedName~CalendarPopupViewModelTests|FullyQualifiedName~CalendarPopupAsyncCommandTests|FullyQualifiedName~TrayIconServiceTests" -p:NuGetAudit=false`
 - `dotnet test QingLi.sln -p:NuGetAudit=false`
 - `dotnet run --project src/QingLi.Windows --no-build -p:NuGetAudit=false`
 
 Results:
 
-- Full test suite passed: 44 tests total.
-- Smoke start no longer throws startup exceptions; the app keeps running as expected for a tray app until the harness timeout stops it.
+- Focused Windows tests passed.
+- Full solution tests passed.
+- The startup smoke run stayed resident as expected for a tray app and hit the harness timeout rather than crashing.
 
 Notes:
 
-- The popup view model does not calculate lunar data itself; it uses `CalendarMonthService`.
-- Birthday occurrence dates are merged from `BirthdayOccurrenceService`, and selected-day details show the matched birthday names.
-- Tray menu text is exactly: 打开日历、添加生日、设置、暂停今日提醒、退出.
+- The tray menu still uses the exact required labels.
+- The popup view model still delegates lunar/calendar math to `CalendarMonthService`.
+- Birthday dates are merged from `BirthdayOccurrenceService`.
