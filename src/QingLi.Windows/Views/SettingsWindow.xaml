@@ -55,7 +55,7 @@
                         <UniformGrid Columns="2" Margin="0,0,0,14">
                             <StackPanel Margin="0,0,12,0">
                                 <TextBlock Margin="0,0,0,6" Text="时钟字号" />
-                                <TextBox Text="{Binding ClockFontSize, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding ClockFontSizeText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Margin="0,0,0,6" Text="一周首日" />
@@ -74,6 +74,28 @@
                         <TextBlock Margin="0,0,0,14"
                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                                    Text="{Binding EffectiveClockTextColor, StringFormat=当前颜色：{0}}" />
+
+                        <ItemsControl Margin="0,0,0,14"
+                                      ItemsSource="{Binding ValidationErrors}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8"
+                                            Padding="10,8"
+                                            Background="#FFF4F1"
+                                            CornerRadius="10">
+                                        <TextBlock Foreground="#C24532" Text="{Binding}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Margin="0,0,0,14"
+                                Padding="10,8"
+                                Background="#FFF4F1"
+                                CornerRadius="10">
+                            <TextBlock Foreground="#C24532"
+                                       Text="{Binding SaveErrorMessage}" />
+                        </Border>
 
                         <Border Margin="0,0,0,14"
                                 Padding="12"

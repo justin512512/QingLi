@@ -25,7 +25,7 @@ public sealed class SettingsViewModelTests
         vm.StartWithWindows = true;
         vm.UseTwelveHourClock = true;
         vm.DateFormat = "yyyy/MM/dd ddd";
-        vm.ClockFontSize = 18;
+        vm.ClockFontSizeText = "18";
         vm.ClockTextColor = "#FF336699";
 
         await vm.SaveCommand.ExecuteAsync();
@@ -40,6 +40,27 @@ public sealed class SettingsViewModelTests
         Assert.Equal("#FF336699", saved.ClockTextColor);
         Assert.Equal((true, @"C:\Apps\QingLi.exe"), startup.SetCalls.Single());
         Assert.Empty(openedPaths);
+    }
+
+    [Fact]
+    public async Task Save_command_does_not_write_settings_when_clock_font_size_is_not_numeric()
+    {
+        var store = new RecordingSettingsStore();
+        var startup = new RecordingStartupTaskService();
+        var vm = new SettingsViewModel(
+            store,
+            startup,
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { });
+
+        vm.ClockFontSizeText = "x";
+
+        await vm.SaveCommand.ExecuteAsync();
+
+        Assert.Empty(store.SavedSettings);
+        Assert.Empty(startup.SetCalls);
+        Assert.Contains("时钟字号必须是数字", vm.ValidationErrors);
     }
 
     [Fact]
@@ -70,7 +91,7 @@ public sealed class SettingsViewModelTests
         Assert.True(vm.StartWithWindows);
         Assert.True(vm.UseTwelveHourClock);
         Assert.Equal("MM-dd", vm.DateFormat);
-        Assert.Equal(20, vm.ClockFontSize);
+        Assert.Equal("20", vm.ClockFontSizeText);
         Assert.Equal("#FF0000", vm.ClockTextColor);
     }
 
@@ -119,17 +140,79 @@ public sealed class SettingsViewModelTests
         Assert.Equal("下一阶段提供", vm.ReplaceSystemClockMessage);
     }
 
+    [Fact]
+    public async Task Startup_failure_prevents_settings_write()
+    {
+        var store = new RecordingSettingsStore();
+        var startup = new RecordingStartupTaskService
+        {
+            SetException = new InvalidOperationException("启动项失败")
+        };
+        var vm = new SettingsViewModel(
+            store,
+            startup,
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { })
+        {
+            StartWithWindows = true
+        };
+
+        await vm.SaveCommand.ExecuteAsync();
+
+        Assert.Empty(store.SavedSettings);
+        Assert.Equal("启动项失败", vm.SaveErrorMessage);
+        Assert.NotNull(vm.SaveCommand.LastError);
+    }
+
+    [Fact]
+    public async Task Save_failure_rolls_back_startup_state()
+    {
+        var store = new RecordingSettingsStore
+        {
+            SaveException = new InvalidOperationException("设置保存失败")
+        };
+        var startup = new RecordingStartupTaskService(isEnabled: false);
+        var vm = new SettingsViewModel(
+            store,
+            startup,
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { })
+        {
+            StartWithWindows = true
+        };
+
+        await vm.SaveCommand.ExecuteAsync();
+
+        Assert.Equal(
+            [
+                (true, @"C:\Apps\QingLi.exe"),
+                (false, @"C:\Apps\QingLi.exe")
+            ],
+            startup.SetCalls);
+        Assert.Equal("设置保存失败", vm.SaveErrorMessage);
+        Assert.NotNull(vm.SaveCommand.LastError);
+    }
+
     private sealed class RecordingSettingsStore(AppSettings? loaded = null) : ISettingsStore
     {
         private readonly AppSettings _loaded = loaded ?? AppSettings.Default;
 
         public List<AppSettings> SavedSettings { get; } = [];
 
+        public Exception? SaveException { get; set; }
+
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) =>
             Task.FromResult(_loaded);
 
         public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
         {
+            if (SaveException is not null)
+            {
+                throw SaveException;
+            }
+
             SavedSettings.Add(settings);
             return Task.CompletedTask;
         }
@@ -137,13 +220,23 @@ public sealed class SettingsViewModelTests
 
     private sealed class RecordingStartupTaskService(bool isEnabled = false) : IStartupTaskService
     {
-        private readonly bool _isEnabled = isEnabled;
+        private bool _isEnabled = isEnabled;
 
         public List<(bool Enabled, string ExecutablePath)> SetCalls { get; } = [];
 
+        public Exception? SetException { get; set; }
+
         public bool IsEnabled(string executablePath) => _isEnabled;
 
-        public void SetEnabled(bool enabled, string executablePath) =>
+        public void SetEnabled(bool enabled, string executablePath)
+        {
+            if (SetException is not null)
+            {
+                throw SetException;
+            }
+
+            _isEnabled = enabled;
             SetCalls.Add((enabled, executablePath));
+        }
     }
 }

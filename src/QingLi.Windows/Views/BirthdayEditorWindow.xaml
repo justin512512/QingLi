@@ -50,15 +50,15 @@
                         <UniformGrid Columns="3" Margin="0,0,0,14">
                             <StackPanel Margin="0,0,12,0">
                                 <TextBlock Margin="0,0,0,6" Text="出生年" />
-                                <TextBox Text="{Binding BirthYear, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding BirthYearText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel Margin="0,0,12,0">
                                 <TextBlock Margin="0,0,0,6" Text="月份" />
-                                <TextBox Text="{Binding Month, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding MonthText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Margin="0,0,0,6" Text="日期" />
-                                <TextBox Text="{Binding Day, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding DayText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                         </UniformGrid>
 
@@ -69,7 +69,7 @@
                         <UniformGrid Columns="2" Margin="0,0,0,14">
                             <StackPanel Margin="0,0,12,0">
                                 <TextBlock Margin="0,0,0,6" Text="提前天数" />
-                                <TextBox Text="{Binding ReminderDaysBefore, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding ReminderDaysBeforeText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Margin="0,0,0,6" Text="提醒时间" />
@@ -100,6 +100,14 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <Border Margin="0,8,0,0"
+                                Padding="10,8"
+                                Background="#FFF4F1"
+                                CornerRadius="10">
+                            <TextBlock Foreground="#C24532"
+                                       Text="{Binding SaveErrorMessage}" />
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 

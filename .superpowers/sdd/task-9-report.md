@@ -45,3 +45,37 @@
 
 - The “暂停今日提醒” tray action remains unchanged in this task.
 - Full test runs in this environment require `-p:NuGetAudit=false` because offline NuGet vulnerability auditing raises `NU1900` against the default `https://api.nuget.org/v3/index.json` endpoint.
+
+## Fix Pass After Review
+
+- Replaced direct numeric editing bindings with string input properties:
+  - `BirthYearText`
+  - `MonthText`
+  - `DayText`
+  - `ReminderDaysBeforeText`
+  - `ClockFontSizeText`
+- Moved numeric parsing into validation/save flows so empty and non-numeric intermediate input cannot silently preserve the previous numeric value.
+- Added explicit Chinese validation failures for empty and non-numeric numeric fields.
+- Added `SaveErrorMessage` state in birthday and settings view models and surfaced it in both windows so save failures stay visible without closing the window.
+- Changed settings save ordering to:
+  1. validate
+  2. apply startup setting first
+  3. save settings
+  4. best-effort rollback startup state if settings save fails
+- Added regression coverage for editing an existing birthday and preserving its original `Id`.
+
+## Fix Verification
+
+- Focused:
+  - `E:\claude_data\.dotnet\dotnet.exe test tests\QingLi.Windows.Tests\QingLi.Windows.Tests.csproj -p:NuGetAudit=false --filter FullyQualifiedName~BirthdayEditorViewModelTests`
+    - Passed: 19
+    - Failed: 0
+  - `E:\claude_data\.dotnet\dotnet.exe test tests\QingLi.Windows.Tests\QingLi.Windows.Tests.csproj -p:NuGetAudit=false --filter FullyQualifiedName~SettingsViewModelTests`
+    - Passed: 8
+    - Failed: 0
+- Full suite:
+  - `E:\claude_data\.dotnet\dotnet.exe test E:\claude_data\projects\QingLi\.worktrees\qingli-desktop\QingLi.sln -p:NuGetAudit=false`
+    - Passed: 81
+    - Failed: 0
+- Short startup:
+  - Process stayed alive for 5 seconds and was stopped intentionally

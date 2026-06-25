@@ -13,15 +13,16 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
     private readonly Guid _birthdayId;
     private BirthdayCalendarKind _calendarKind;
     private string _name = string.Empty;
-    private int _birthYear = DateTime.Today.Year;
-    private int _month = 1;
-    private int _day = 1;
+    private string _birthYearText = DateTime.Today.Year.ToString(CultureInfo.InvariantCulture);
+    private string _monthText = "1";
+    private string _dayText = "1";
     private bool _isLeapMonth;
-    private int _reminderDaysBefore;
+    private string _reminderDaysBeforeText = "0";
     private string _reminderTimeText = "09:00";
     private string? _notes;
     private bool _isEnabled = true;
     private IReadOnlyList<string> _validationErrors = [];
+    private string _saveErrorMessage = string.Empty;
 
     public BirthdayEditorViewModel(
         IBirthdayRepository birthdayRepository,
@@ -41,17 +42,18 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
             _birthdayId = birthday.Id;
             _calendarKind = birthday.CalendarKind;
             _name = birthday.Name;
-            _birthYear = birthday.BirthYear;
-            _month = birthday.Month;
-            _day = birthday.Day;
+            _birthYearText = birthday.BirthYear.ToString(CultureInfo.InvariantCulture);
+            _monthText = birthday.Month.ToString(CultureInfo.InvariantCulture);
+            _dayText = birthday.Day.ToString(CultureInfo.InvariantCulture);
             _isLeapMonth = birthday.IsLeapMonth;
-            _reminderDaysBefore = birthday.ReminderDaysBefore;
+            _reminderDaysBeforeText = birthday.ReminderDaysBefore.ToString(CultureInfo.InvariantCulture);
             _reminderTimeText = birthday.ReminderTime.ToString("HH:mm", CultureInfo.InvariantCulture);
             _notes = birthday.Notes;
             _isEnabled = birthday.IsEnabled;
         }
 
         SaveCommand = new AsyncCommand(SaveAsync);
+        SaveCommand.ErrorOccurred += (_, exception) => SaveErrorMessage = exception.Message;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -70,22 +72,22 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
         set => SetField(ref _name, value);
     }
 
-    public int BirthYear
+    public string BirthYearText
     {
-        get => _birthYear;
-        set => SetField(ref _birthYear, value);
+        get => _birthYearText;
+        set => SetField(ref _birthYearText, value);
     }
 
-    public int Month
+    public string MonthText
     {
-        get => _month;
-        set => SetField(ref _month, value);
+        get => _monthText;
+        set => SetField(ref _monthText, value);
     }
 
-    public int Day
+    public string DayText
     {
-        get => _day;
-        set => SetField(ref _day, value);
+        get => _dayText;
+        set => SetField(ref _dayText, value);
     }
 
     public bool IsLeapMonth
@@ -94,10 +96,10 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
         set => SetField(ref _isLeapMonth, value);
     }
 
-    public int ReminderDaysBefore
+    public string ReminderDaysBeforeText
     {
-        get => _reminderDaysBefore;
-        set => SetField(ref _reminderDaysBefore, value);
+        get => _reminderDaysBeforeText;
+        set => SetField(ref _reminderDaysBeforeText, value);
     }
 
     public string ReminderTimeText
@@ -124,90 +126,158 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
         private set => SetField(ref _validationErrors, value);
     }
 
+    public string SaveErrorMessage
+    {
+        get => _saveErrorMessage;
+        private set => SetField(ref _saveErrorMessage, value);
+    }
+
     public IReadOnlyList<string> Validate()
     {
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(Name))
-        {
-            errors.Add("请输入姓名");
-        }
-
-        if (BirthYear is < 1 or > 9999)
-        {
-            errors.Add("年份应在 1 到 9999 之间");
-        }
-
-        if (Month is < 1 or > 12)
-        {
-            errors.Add("月份应在 1 到 12 之间");
-        }
-
-        if (ReminderDaysBefore is < 0 or > 365)
-        {
-            errors.Add("提前天数应在 0 到 365 之间");
-        }
-
-        if (!TimeOnly.TryParse(ReminderTimeText, out _))
-        {
-            errors.Add("提醒时间格式无效");
-        }
-
-        if (Month is >= 1 and <= 12 && BirthYear is >= 1 and <= 9999)
-        {
-            if (CalendarKind == BirthdayCalendarKind.Gregorian)
-            {
-                var maxDay = DateTime.DaysInMonth(BirthYear, Month);
-                if (Day < 1 || Day > maxDay)
-                {
-                    errors.Add("日期超出范围");
-                }
-            }
-            else
-            {
-                if (Day is < 1 or > 30)
-                {
-                    errors.Add("日期超出范围");
-                    errors.Add("农历日期应在 1 到 30 之间");
-                }
-                else if (!_lunarDateValidator(BirthYear, Month, Day, IsLeapMonth))
-                {
-                    errors.Add("农历生日无效");
-                }
-            }
-        }
-
+        _ = TryBuildBirthday(out _, out var errors);
         return errors;
     }
 
     private async Task SaveAsync()
     {
-        ValidationErrors = Validate();
-        if (ValidationErrors.Count > 0)
+        SaveErrorMessage = string.Empty;
+
+        if (!TryBuildBirthday(out var birthday, out var errors))
         {
+            ValidationErrors = errors;
             return;
+        }
+
+        ValidationErrors = [];
+        await _birthdayRepository.SaveAsync(birthday!, CancellationToken.None);
+    }
+
+    private bool TryBuildBirthday(out Birthday? birthday, out IReadOnlyList<string> errors)
+    {
+        var validationErrors = new List<string>();
+        birthday = null;
+
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            validationErrors.Add("请输入姓名");
+        }
+
+        var hasBirthYear = TryParseRequiredInt(
+            BirthYearText,
+            "出生年不能为空",
+            "出生年必须是数字",
+            out var birthYear,
+            validationErrors);
+        if (hasBirthYear && (birthYear < 1 || birthYear > 9999))
+        {
+            validationErrors.Add("年份应在 1 到 9999 之间");
+        }
+
+        var hasMonth = TryParseRequiredInt(
+            MonthText,
+            "月份不能为空",
+            "月份必须是数字",
+            out var month,
+            validationErrors);
+        if (hasMonth && (month < 1 || month > 12))
+        {
+            validationErrors.Add("月份应在 1 到 12 之间");
+        }
+
+        var hasDay = TryParseRequiredInt(
+            DayText,
+            "日期不能为空",
+            "日期必须是数字",
+            out var day,
+            validationErrors);
+
+        var hasReminderDaysBefore = TryParseRequiredInt(
+            ReminderDaysBeforeText,
+            "提前天数不能为空",
+            "提前天数必须是数字",
+            out var reminderDaysBefore,
+            validationErrors);
+        if (hasReminderDaysBefore && (reminderDaysBefore < 0 || reminderDaysBefore > 365))
+        {
+            validationErrors.Add("提前天数应在 0 到 365 之间");
         }
 
         if (!TimeOnly.TryParse(ReminderTimeText, out var reminderTime))
         {
-            ValidationErrors = ["提醒时间格式无效"];
-            return;
+            validationErrors.Add("提醒时间格式无效");
         }
 
-        var birthday = new Birthday(
+        if (hasMonth && hasDay && hasBirthYear)
+        {
+            if (CalendarKind == BirthdayCalendarKind.Gregorian)
+            {
+                if (month is >= 1 and <= 12)
+                {
+                    var maxDay = DateTime.DaysInMonth(Math.Clamp(birthYear, 1, 9999), month);
+                    if (day < 1 || day > maxDay)
+                    {
+                        validationErrors.Add("日期超出范围");
+                    }
+                }
+            }
+            else
+            {
+                if (day < 1 || day > 30)
+                {
+                    validationErrors.Add("日期超出范围");
+                    validationErrors.Add("农历日期应在 1 到 30 之间");
+                }
+                else if (month is >= 1 and <= 12 &&
+                         birthYear is >= 1 and <= 9999 &&
+                         !_lunarDateValidator(birthYear, month, day, IsLeapMonth))
+                {
+                    validationErrors.Add("农历生日无效");
+                }
+            }
+        }
+
+        errors = validationErrors;
+        if (validationErrors.Count > 0)
+        {
+            return false;
+        }
+
+        birthday = new Birthday(
             _birthdayId,
             Name.Trim(),
             CalendarKind,
-            BirthYear,
-            Month,
-            Day,
+            birthYear,
+            month,
+            day,
             IsLeapMonth,
-            ReminderDaysBefore,
+            reminderDaysBefore,
             reminderTime,
             string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim(),
             IsEnabled);
+        return true;
+    }
 
-        await _birthdayRepository.SaveAsync(birthday, CancellationToken.None);
+    private static bool TryParseRequiredInt(
+        string? text,
+        string emptyMessage,
+        string invalidMessage,
+        out int value,
+        ICollection<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            errors.Add(emptyMessage);
+            value = default;
+            return false;
+        }
+
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            errors.Add(invalidMessage);
+            return false;
+        }
+
+        return true;
     }
 
     private static bool ValidateLunarDate(int year, int month, int day, bool isLeapMonth)
@@ -223,15 +293,16 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
         }
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

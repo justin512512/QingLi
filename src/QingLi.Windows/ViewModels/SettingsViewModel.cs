@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using QingLi.Core.Settings;
 using QingLi.Windows.Startup;
@@ -17,8 +18,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private bool _startWithWindows = AppSettings.Default.StartWithWindows;
     private bool _useTwelveHourClock = AppSettings.Default.UseTwelveHourClock;
     private string _dateFormat = AppSettings.Default.DateFormat;
-    private double _clockFontSize = AppSettings.Default.ClockFontSize;
+    private string _clockFontSizeText = AppSettings.Default.ClockFontSize.ToString(CultureInfo.InvariantCulture);
     private string? _clockTextColor = AppSettings.Default.ClockTextColor;
+    private IReadOnlyList<string> _validationErrors = [];
+    private string _saveErrorMessage = string.Empty;
 
     public SettingsViewModel(
         ISettingsStore settingsStore,
@@ -35,6 +38,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
         LoadCommand = new AsyncCommand(LoadAsync);
         SaveCommand = new AsyncCommand(SaveAsync);
+        SaveCommand.ErrorOccurred += (_, exception) => SaveErrorMessage = exception.Message;
         OpenDataDirectoryCommand = new AsyncCommand(OpenDataDirectoryAsync);
     }
 
@@ -76,10 +80,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _dateFormat, value);
     }
 
-    public double ClockFontSize
+    public string ClockFontSizeText
     {
-        get => _clockFontSize;
-        set => SetField(ref _clockFontSize, value);
+        get => _clockFontSizeText;
+        set => SetField(ref _clockFontSizeText, value);
     }
 
     public string? ClockTextColor
@@ -92,6 +96,18 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(EffectiveClockTextColor));
             }
         }
+    }
+
+    public IReadOnlyList<string> ValidationErrors
+    {
+        get => _validationErrors;
+        private set => SetField(ref _validationErrors, value);
+    }
+
+    public string SaveErrorMessage
+    {
+        get => _saveErrorMessage;
+        private set => SetField(ref _saveErrorMessage, value);
     }
 
     public bool IsHighContrast => _isHighContrast();
@@ -114,24 +130,91 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         FirstDayOfWeek = settings.FirstDayOfWeek;
         UseTwelveHourClock = settings.UseTwelveHourClock;
         DateFormat = settings.DateFormat;
-        ClockFontSize = settings.ClockFontSize;
+        ClockFontSizeText = settings.ClockFontSize.ToString(CultureInfo.InvariantCulture);
         ClockTextColor = settings.ClockTextColor;
         StartWithWindows = await Task.Run(() => _startupTaskService.IsEnabled(_executablePath));
     }
 
     private async Task SaveAsync()
     {
-        var settings = new AppSettings(
-            Theme,
-            FirstDayOfWeek,
-            StartWithWindows,
-            UseTwelveHourClock,
-            DateFormat,
-            ClockFontSize,
-            ClockTextColor);
+        SaveErrorMessage = string.Empty;
 
-        await _settingsStore.SaveAsync(settings, CancellationToken.None);
-        await Task.Run(() => _startupTaskService.SetEnabled(StartWithWindows, _executablePath));
+        if (!TryBuildSettings(out var settings, out var errors))
+        {
+            ValidationErrors = errors;
+            return;
+        }
+
+        ValidationErrors = [];
+
+        var originalStartup = await Task.Run(() => _startupTaskService.IsEnabled(_executablePath));
+        var startupChanged = false;
+
+        try
+        {
+            if (originalStartup != StartWithWindows)
+            {
+                await Task.Run(() => _startupTaskService.SetEnabled(StartWithWindows, _executablePath));
+                startupChanged = true;
+            }
+
+            await _settingsStore.SaveAsync(settings!, CancellationToken.None);
+        }
+        catch
+        {
+            if (startupChanged)
+            {
+                try
+                {
+                    await Task.Run(() => _startupTaskService.SetEnabled(originalStartup, _executablePath));
+                }
+                catch
+                {
+                    // Best effort rollback only.
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private bool TryBuildSettings(out AppSettings? settings, out IReadOnlyList<string> errors)
+    {
+        var validationErrors = new List<string>();
+        settings = null;
+
+        if (string.IsNullOrWhiteSpace(ClockFontSizeText))
+        {
+            validationErrors.Add("时钟字号不能为空");
+        }
+        else if (!double.TryParse(
+                     ClockFontSizeText,
+                     NumberStyles.Float | NumberStyles.AllowThousands,
+                     CultureInfo.InvariantCulture,
+                     out var clockFontSize))
+        {
+            validationErrors.Add("时钟字号必须是数字");
+        }
+        else if (clockFontSize <= 0)
+        {
+            validationErrors.Add("时钟字号必须大于 0");
+        }
+        else
+        {
+            errors = validationErrors;
+            settings = new AppSettings(
+                Theme,
+                FirstDayOfWeek,
+                StartWithWindows,
+                UseTwelveHourClock,
+                DateFormat,
+                clockFontSize,
+                ClockTextColor);
+            return true;
+        }
+
+        errors = validationErrors;
+        return false;
     }
 
     private Task OpenDataDirectoryAsync()
