@@ -3,7 +3,14 @@ using System.IO;
 
 namespace QingLi.Windows.Startup;
 
-public sealed class StartupTaskService
+public interface IStartupTaskService
+{
+    bool IsEnabled(string executablePath);
+
+    void SetEnabled(bool enabled, string executablePath);
+}
+
+public sealed class StartupTaskService : IStartupTaskService
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "QingLi";

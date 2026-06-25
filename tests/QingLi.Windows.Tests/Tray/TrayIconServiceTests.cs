@@ -34,4 +34,36 @@ public sealed class TrayIconServiceTests
 
         Assert.Equal(1, toggles);
     }
+
+    [Fact]
+    public void Birthday_menu_item_invokes_callback()
+    {
+        var addBirthday = 0;
+        var service = new TrayIconService(
+            onToggleCalendar: () => { },
+            onAddBirthday: () => addBirthday++,
+            onOpenSettings: () => { },
+            onPauseTodayReminders: () => { },
+            onExit: () => { });
+
+        service.ContextMenuStrip.Items[1].PerformClick();
+
+        Assert.Equal(1, addBirthday);
+    }
+
+    [Fact]
+    public void Settings_menu_item_invokes_callback()
+    {
+        var openSettings = 0;
+        var service = new TrayIconService(
+            onToggleCalendar: () => { },
+            onAddBirthday: () => { },
+            onOpenSettings: () => openSettings++,
+            onPauseTodayReminders: () => { },
+            onExit: () => { });
+
+        service.ContextMenuStrip.Items[2].PerformClick();
+
+        Assert.Equal(1, openSettings);
+    }
 }

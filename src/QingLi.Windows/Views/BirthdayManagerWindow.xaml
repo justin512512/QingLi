@@ -1,0 +1,83 @@
+<Window x:Class="QingLi.Windows.Views.BirthdayManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="生日管理"
+        Width="760"
+        Height="560"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F6F8">
+    <Grid Margin="20">
+        <Border Padding="24"
+                Background="White"
+                BorderBrush="#14000000"
+                BorderThickness="1"
+                CornerRadius="24">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel>
+                    <TextBlock FontSize="24"
+                               FontWeight="SemiBold"
+                               Foreground="#1F1F1F"
+                               Text="生日管理" />
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="#6A6A6A"
+                               Text="按最近生日排序，支持搜索、编辑和删除。" />
+                </StackPanel>
+
+                <DockPanel Grid.Row="1" Margin="0,20,0,18">
+                    <TextBox Width="260"
+                             Height="34"
+                             VerticalContentAlignment="Center"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Margin="12,0,0,0"
+                            Padding="18,6"
+                            Content="搜索"
+                            Click="OnSearchClick" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Margin="0,0,12,0"
+                                Padding="18,6"
+                                Content="新增"
+                                Click="OnAddClick" />
+                        <Button Margin="0,0,12,0"
+                                Padding="18,6"
+                                Content="编辑"
+                                Click="OnEditClick" />
+                        <Button Padding="18,6"
+                                Content="删除"
+                                Click="OnDeleteClick" />
+                    </StackPanel>
+                </DockPanel>
+
+                <DataGrid Grid.Row="2"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding Birthdays}"
+                          SelectedItem="{Binding SelectedBirthday, Mode=TwoWay}"
+                          RowHeight="42">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="类型" Binding="{Binding CalendarKindText}" Width="100" />
+                        <DataGridTextColumn Header="生日" Binding="{Binding BirthdayText}" Width="120" />
+                        <DataGridTextColumn Header="下次日期" Binding="{Binding NextOccurrenceText}" Width="140" />
+                        <DataGridTextColumn Header="提醒规则" Binding="{Binding ReminderRuleText}" Width="160" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <TextBlock Grid.Row="3"
+                           Margin="0,18,0,0"
+                           Foreground="#6A6A6A"
+                           Text="删除前会再次确认，避免误删。" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

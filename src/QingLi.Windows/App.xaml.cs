@@ -1,11 +1,16 @@
 using System.IO;
+using System.Diagnostics;
 using System.Windows;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
 using QingLi.Core.Holidays;
+using QingLi.Core.Settings;
 using QingLi.Infrastructure.Birthdays;
 using QingLi.Infrastructure.Data;
 using QingLi.Infrastructure.Holidays;
+using QingLi.Infrastructure.Settings;
+using QingLi.Windows.Shell;
+using QingLi.Windows.Startup;
 using QingLi.Windows.Tray;
 using QingLi.Windows.ViewModels;
 using QingLi.Windows.Views;
@@ -17,6 +22,12 @@ public partial class App : System.Windows.Application
     private CalendarPopupViewModel? _calendarPopupViewModel;
     private CalendarPopupWindow? _calendarPopupWindow;
     private TrayIconService? _trayIconService;
+    private ISettingsStore? _settingsStore;
+    private AppSettings _appSettings = AppSettings.Default;
+    private SingletonWindowHost? _birthdayManagerHost;
+    private SingletonWindowHost? _settingsHost;
+
+    public IBirthdayRepository BirthdayRepository { get; private set; } = null!;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -26,10 +37,12 @@ public partial class App : System.Windows.Application
         try
         {
             _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
+            _birthdayManagerHost = new SingletonWindowHost(() => new WindowAdapter(CreateBirthdayManagerWindow()));
+            _settingsHost = new SingletonWindowHost(() => new WindowAdapter(CreateSettingsWindow()));
             _trayIconService = new TrayIconService(
                 ToggleCalendar,
-                onAddBirthday: () => { },
-                onOpenSettings: () => { },
+                onAddBirthday: ShowBirthdayManager,
+                onOpenSettings: ShowSettings,
                 onPauseTodayReminders: () => { },
                 onExit: Shutdown);
         }
@@ -53,13 +66,11 @@ public partial class App : System.Windows.Application
 
     private async Task<CalendarPopupViewModel> CreateCalendarPopupViewModelAsync()
     {
-        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var databasePath = AppPaths.GetDatabasePath(localApplicationData);
-        var databaseDirectory = Path.GetDirectoryName(databasePath)
-            ?? throw new InvalidOperationException("Unable to resolve the QingLi data directory.");
+        Directory.CreateDirectory(AppPaths.DataDirectory);
+        _settingsStore = new JsonSettingsStore(Path.Combine(AppPaths.DataDirectory, "settings.json"));
+        _appSettings = await _settingsStore.LoadAsync(CancellationToken.None);
 
-        Directory.CreateDirectory(databaseDirectory);
-        var connectionFactory = new SqliteConnectionFactory(databasePath);
+        var connectionFactory = new SqliteConnectionFactory(AppPaths.DatabasePath);
         var migrationResult = await new DatabaseMigrator(connectionFactory).TryMigrateAsync(CancellationToken.None);
 
         if (!migrationResult.IsWritable)
@@ -68,6 +79,7 @@ public partial class App : System.Windows.Application
                 migrationResult.ErrorMessage ?? "Unable to initialize the QingLi database.");
         }
 
+        BirthdayRepository = new SqliteBirthdayRepository(connectionFactory);
         var holidayDefinitions = await LoadHolidayDefinitionsAsync();
         var calendarMonthService = new CalendarMonthService(
             new LunarCalendarService(),
@@ -76,10 +88,10 @@ public partial class App : System.Windows.Application
 
         var viewModel = new CalendarPopupViewModel(
             calendarMonthService,
-            new SqliteBirthdayRepository(connectionFactory),
+            BirthdayRepository,
             new BirthdayOccurrenceService(),
             DateOnly.FromDateTime(DateTime.Today),
-            DayOfWeek.Monday);
+            _appSettings.FirstDayOfWeek);
 
         await viewModel.InitializeAsync();
         return viewModel;
@@ -125,5 +137,49 @@ public partial class App : System.Windows.Application
 
         _calendarPopupWindow.Show();
         _calendarPopupWindow.Activate();
+    }
+
+    private void ShowBirthdayManager() => _birthdayManagerHost?.Show();
+
+    private void ShowSettings() => _settingsHost?.Show();
+
+    private BirthdayManagerWindow CreateBirthdayManagerWindow()
+    {
+        var viewModel = new BirthdayManagerViewModel(
+            BirthdayRepository,
+            new BirthdayOccurrenceService(),
+            () => DateOnly.FromDateTime(DateTime.Today));
+
+        return new BirthdayManagerWindow(viewModel);
+    }
+
+    private SettingsWindow CreateSettingsWindow()
+    {
+        if (_settingsStore is null)
+        {
+            throw new InvalidOperationException("Settings store is not initialized.");
+        }
+
+        var startupTaskService = new StartupTaskService();
+        var executablePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Unable to resolve the current process path.");
+
+        var viewModel = new SettingsViewModel(
+            _settingsStore,
+            startupTaskService,
+            executablePath,
+            () => SystemParameters.HighContrast,
+            OpenDirectory);
+
+        return new SettingsWindow(viewModel);
+    }
+
+    private static void OpenDirectory(string path)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = path,
+            UseShellExecute = true
+        });
     }
 }
