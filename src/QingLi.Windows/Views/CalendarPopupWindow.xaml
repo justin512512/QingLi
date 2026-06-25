@@ -1,0 +1,199 @@
+<Window x:Class="QingLi.Windows.Views.CalendarPopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:conv="clr-namespace:QingLi.Windows.Converters"
+        mc:Ignorable="d"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Width="380"
+        Height="520"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="Manual"
+        SnapsToDevicePixels="True"
+        PreviewKeyDown="OnPreviewKeyDown"
+        Loaded="OnLoaded"
+        Deactivated="OnDeactivated">
+    <Window.Resources>
+        <conv:IntegerToVisibilityConverter x:Key="IntegerToVisibilityConverter" />
+    </Window.Resources>
+
+    <Grid Background="Transparent">
+        <Border Margin="8"
+                Padding="18"
+                Background="#FAFAFA"
+                BorderBrush="#14000000"
+                BorderThickness="1"
+                CornerRadius="20">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="20"
+                                  Color="#40000000"
+                                  ShadowDepth="0"
+                                  Opacity="0.18" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" LastChildFill="False">
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#1F1F1F"
+                               Text="{Binding DisplayMonth, StringFormat={}{0:yyyy年M月}}" />
+
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Margin="0,0,6,0"
+                                Padding="10,4"
+                                Content="‹"
+                                Command="{Binding PreviousMonthCommand}" />
+                        <Button Margin="0,0,6,0"
+                                Padding="10,4"
+                                Content="今天"
+                                Command="{Binding TodayCommand}" />
+                        <Button Padding="10,4"
+                                Content="›"
+                                Command="{Binding NextMonthCommand}" />
+                    </StackPanel>
+                </DockPanel>
+
+                <UniformGrid Grid.Row="1" Columns="7" Margin="0,16,0,10">
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="一" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="二" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="三" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="四" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="五" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="六" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="#7A7A7A" Text="日" />
+                </UniformGrid>
+
+                <ListBox Grid.Row="2"
+                         ItemsSource="{Binding Days}"
+                         SelectedItem="{Binding SelectedDay, Mode=TwoWay}"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="7" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Margin" Value="2" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Root"
+                                                CornerRadius="14"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1"
+                                                Padding="8">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Root" Property="Background" Value="#EAF2FF" />
+                                                <Setter TargetName="Root" Property="BorderBrush" Value="#B7D4FF" />
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Root" Property="Background" Value="#F2F7FF" />
+                                            </Trigger>
+                                            <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
+                                                <Setter TargetName="Root" Property="Opacity" Value="0.42" />
+                                            </DataTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#202020"
+                                           Text="{Binding Date.Day}" />
+
+                                <TextBlock Grid.Row="1"
+                                           Margin="0,4,0,0"
+                                           FontSize="10"
+                                           Foreground="#767676"
+                                           Text="{Binding LunarText}" />
+
+                                <TextBlock Grid.Row="2"
+                                           Margin="0,6,0,0"
+                                           FontSize="10"
+                                           Foreground="#E0504E"
+                                           Text="{Binding Birthdays.Count, StringFormat={}{0}个生日}"
+                                           Visibility="{Binding Birthdays.Count, Converter={StaticResource IntegerToVisibilityConverter}}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Row="3"
+                        Margin="0,16,0,0"
+                        Padding="14"
+                        Background="#F4F6F8"
+                        CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#1F1F1F"
+                                   Text="{Binding SelectedDay.Date, StringFormat={}{0:yyyy年M月d日 dddd}}" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Foreground="#5E5E5E"
+                                   Text="{Binding SelectedDay.LunarText, StringFormat=农历：{0}}" />
+                        <TextBlock Margin="0,2,0,0"
+                                   Foreground="#5E5E5E"
+                                   Text="{Binding SelectedDay.SolarTerm, StringFormat=节气：{0}}" />
+                        <TextBlock Margin="0,2,0,0"
+                                   Foreground="#5E5E5E"
+                                   Text="{Binding SelectedDay.HolidayName, StringFormat=节日：{0}}" />
+
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedDay.Birthdays}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,6,6"
+                                            Padding="8,4"
+                                            Background="#FFFFFF"
+                                            CornerRadius="999">
+                                        <TextBlock Foreground="#C04B4B" Text="{Binding}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
