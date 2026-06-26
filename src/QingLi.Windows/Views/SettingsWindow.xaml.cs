@@ -25,7 +25,7 @@ public partial class SettingsWindow : Window
     private async void OnSaveClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.SaveCommand.ExecuteAsync();
-        if (ViewModel.SaveCommand.LastError is null)
+        if (ViewModel.CanCloseAfterSave)
         {
             Close();
         }

@@ -61,6 +61,7 @@ public sealed class SettingsViewModelTests
         Assert.Empty(store.SavedSettings);
         Assert.Empty(startup.SetCalls);
         Assert.Contains("时钟字号必须是数字", vm.ValidationErrors);
+        Assert.False(vm.CanCloseAfterSave);
     }
 
     [Fact]

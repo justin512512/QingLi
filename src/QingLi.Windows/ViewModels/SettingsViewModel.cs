@@ -110,6 +110,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         private set => SetField(ref _saveErrorMessage, value);
     }
 
+    public bool CanCloseAfterSave => ValidationErrors.Count == 0 && SaveCommand.LastError is null;
+
     public bool IsHighContrast => _isHighContrast();
 
     public bool CanCustomizeClockTextColor => !IsHighContrast;
