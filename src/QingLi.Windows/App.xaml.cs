@@ -4,10 +4,14 @@ using System.Windows;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
 using QingLi.Core.Holidays;
+using QingLi.Core.Reminders;
 using QingLi.Core.Settings;
 using QingLi.Infrastructure.Birthdays;
 using QingLi.Infrastructure.Data;
 using QingLi.Infrastructure.Holidays;
+using QingLi.Infrastructure.Reminders;
+using QingLi.Windows.Notifications;
+using QingLi.Windows.Scheduling;
 using QingLi.Infrastructure.Settings;
 using QingLi.Windows.Shell;
 using QingLi.Windows.Startup;
@@ -26,6 +30,9 @@ public partial class App : System.Windows.Application
     private AppSettings _appSettings = AppSettings.Default;
     private SingletonWindowHost? _birthdayManagerHost;
     private SingletonWindowHost? _settingsHost;
+    private IReminderSuppression? _reminderSuppression;
+    private ReminderScheduler? _reminderScheduler;
+    private WindowsNotificationService? _notificationService;
 
     public IBirthdayRepository BirthdayRepository { get; private set; } = null!;
 
@@ -43,8 +50,15 @@ public partial class App : System.Windows.Application
                 ToggleCalendar,
                 onAddBirthday: ShowBirthdayManager,
                 onOpenSettings: ShowSettings,
-                onPauseTodayReminders: () => { },
+                onPauseTodayReminders: PauseTodayReminders,
                 onExit: Shutdown);
+
+            if (_reminderScheduler is not null)
+            {
+                _reminderScheduler.CheckFailed += HandleReminderCheckFailed;
+                await _reminderScheduler.CheckAsync(DateTimeOffset.Now, CancellationToken.None);
+                _reminderScheduler.Start();
+            }
         }
         catch (Exception exception)
         {
@@ -59,6 +73,13 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_reminderScheduler is not null)
+        {
+            _reminderScheduler.CheckFailed -= HandleReminderCheckFailed;
+            _reminderScheduler.Dispose();
+        }
+
+        _notificationService?.Dispose();
         _trayIconService?.Dispose();
         _calendarPopupWindow?.Close();
         base.OnExit(e);
@@ -80,6 +101,17 @@ public partial class App : System.Windows.Application
         }
 
         BirthdayRepository = new SqliteBirthdayRepository(connectionFactory);
+        _reminderSuppression = new SqliteReminderSuppression(connectionFactory);
+        _notificationService = new WindowsNotificationService(_ => ShowBirthdayManager());
+        var startupTime = DateTimeOffset.Now;
+        _reminderScheduler = new ReminderScheduler(
+            BirthdayRepository,
+            new ReminderPlanner(new BirthdayOccurrenceService()),
+            new SqliteReminderHistoryRepository(connectionFactory),
+            _reminderSuppression,
+            _notificationService,
+            new DateTimeOffset(startupTime.Date, startupTime.Offset));
+
         var holidayDefinitions = await LoadHolidayDefinitionsAsync();
         var calendarMonthService = new CalendarMonthService(
             new LunarCalendarService(),
@@ -142,6 +174,41 @@ public partial class App : System.Windows.Application
     private void ShowBirthdayManager() => _birthdayManagerHost?.Show();
 
     private void ShowSettings() => _settingsHost?.Show();
+
+    private async void PauseTodayReminders()
+    {
+        if (_reminderSuppression is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _reminderSuppression.SuppressAsync(
+                DateOnly.FromDateTime(DateTime.Today),
+                CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            System.Windows.MessageBox.Show(
+                $"无法暂停今日提醒：{exception.Message}",
+                "轻历",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private void HandleReminderCheckFailed(Exception exception)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            System.Windows.MessageBox.Show(
+                $"生日提醒检查失败：{exception.Message}",
+                "轻历",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        });
+    }
 
     private BirthdayManagerWindow CreateBirthdayManagerWindow()
     {
