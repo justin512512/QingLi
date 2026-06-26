@@ -1,9 +1,8 @@
-using System.Drawing;
 using System.Security.Principal;
 using System.Windows;
-using System.Windows.Forms;
 using QingLi.Core.Reminders;
 using QingLi.Windows.Scheduling;
+using QingLi.Windows.Tray;
 
 namespace QingLi.Windows.Notifications;
 
@@ -12,21 +11,16 @@ public sealed class WindowsNotificationService :
     IReminderNotificationSink,
     IDisposable
 {
-    private readonly NotifyIcon _notifyIcon;
+    private readonly TrayIconService _trayIconService;
     private readonly Action<Guid>? _openBirthday;
     private bool _adminWarningShown;
     private Guid? _lastBirthdayId;
 
-    public WindowsNotificationService(Action<Guid>? openBirthday = null, Icon? icon = null)
+    public WindowsNotificationService(TrayIconService trayIconService, Action<Guid>? openBirthday = null)
     {
+        _trayIconService = trayIconService;
         _openBirthday = openBirthday;
-        _notifyIcon = new NotifyIcon
-        {
-            Icon = icon ?? SystemIcons.Application,
-            Text = "轻历",
-            Visible = true
-        };
-        _notifyIcon.BalloonTipClicked += HandleBalloonTipClicked;
+        _trayIconService.BalloonTipClicked += HandleBalloonTipClicked;
     }
 
     public bool IsAvailable => !IsProcessElevated();
@@ -47,17 +41,13 @@ public sealed class WindowsNotificationService :
 
         var payload = NotificationPayloadBuilder.Build(candidate);
         _lastBirthdayId = candidate.BirthdayId;
-        _notifyIcon.BalloonTipTitle = payload.Title;
-        _notifyIcon.BalloonTipText = payload.Body;
-        _notifyIcon.ShowBalloonTip(10_000);
+        _trayIconService.ShowBalloonTip(payload.Title, payload.Body, 10_000);
         return Task.CompletedTask;
     }
 
     public void Dispose()
     {
-        _notifyIcon.BalloonTipClicked -= HandleBalloonTipClicked;
-        _notifyIcon.Visible = false;
-        _notifyIcon.Dispose();
+        _trayIconService.BalloonTipClicked -= HandleBalloonTipClicked;
     }
 
     private void HandleBalloonTipClicked(object? sender, EventArgs e)

@@ -31,6 +31,7 @@ public partial class App : System.Windows.Application
     private SingletonWindowHost? _birthdayManagerHost;
     private SingletonWindowHost? _settingsHost;
     private IReminderSuppression? _reminderSuppression;
+    private IReminderHistoryRepository? _reminderHistory;
     private ReminderScheduler? _reminderScheduler;
     private WindowsNotificationService? _notificationService;
 
@@ -52,6 +53,7 @@ public partial class App : System.Windows.Application
                 onOpenSettings: ShowSettings,
                 onPauseTodayReminders: PauseTodayReminders,
                 onExit: Shutdown);
+            CreateReminderScheduler();
 
             if (_reminderScheduler is not null)
             {
@@ -118,15 +120,7 @@ public partial class App : System.Windows.Application
 
         BirthdayRepository = new SqliteBirthdayRepository(connectionFactory);
         _reminderSuppression = new SqliteReminderSuppression(connectionFactory);
-        _notificationService = new WindowsNotificationService(_ => ShowBirthdayManager());
-        var startupTime = DateTimeOffset.Now;
-        _reminderScheduler = new ReminderScheduler(
-            BirthdayRepository,
-            new ReminderPlanner(new BirthdayOccurrenceService()),
-            new SqliteReminderHistoryRepository(connectionFactory),
-            _reminderSuppression,
-            _notificationService,
-            new DateTimeOffset(startupTime.Date, startupTime.Offset));
+        _reminderHistory = new SqliteReminderHistoryRepository(connectionFactory);
 
         var holidayDefinitions = await LoadHolidayDefinitionsAsync();
         var calendarMonthService = new CalendarMonthService(
@@ -190,6 +184,24 @@ public partial class App : System.Windows.Application
     private void ShowBirthdayManager() => _birthdayManagerHost?.Show();
 
     private void ShowSettings() => _settingsHost?.Show();
+
+    private void CreateReminderScheduler()
+    {
+        if (_trayIconService is null || _reminderSuppression is null || _reminderHistory is null)
+        {
+            return;
+        }
+
+        _notificationService = new WindowsNotificationService(_trayIconService, _ => ShowBirthdayManager());
+        var startupTime = DateTimeOffset.Now;
+        _reminderScheduler = new ReminderScheduler(
+            BirthdayRepository,
+            new ReminderPlanner(new BirthdayOccurrenceService()),
+            _reminderHistory,
+            _reminderSuppression,
+            _notificationService,
+            new DateTimeOffset(startupTime.Date, startupTime.Offset));
+    }
 
     private async void PauseTodayReminders()
     {

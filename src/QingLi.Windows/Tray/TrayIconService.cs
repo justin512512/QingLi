@@ -46,7 +46,20 @@ public sealed class TrayIconService : IDisposable
 
     public IReadOnlyList<string> MenuTexts { get; }
 
+    public event EventHandler? BalloonTipClicked
+    {
+        add => _notifyIcon.BalloonTipClicked += value;
+        remove => _notifyIcon.BalloonTipClicked -= value;
+    }
+
     public void HandlePrimaryClick() => _onToggleCalendar();
+
+    public void ShowBalloonTip(string title, string text, int timeoutMilliseconds)
+    {
+        _notifyIcon.BalloonTipTitle = title;
+        _notifyIcon.BalloonTipText = text;
+        _notifyIcon.ShowBalloonTip(timeoutMilliseconds);
+    }
 
     public void Dispose()
     {
