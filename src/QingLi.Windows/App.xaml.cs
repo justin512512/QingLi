@@ -56,16 +56,24 @@ public partial class App : System.Windows.Application
             if (_reminderScheduler is not null)
             {
                 _reminderScheduler.CheckFailed += HandleReminderCheckFailed;
-                try
-                {
-                    await _reminderScheduler.CheckAsync(DateTimeOffset.Now, CancellationToken.None);
-                }
-                catch (Exception exception)
-                {
-                    HandleReminderCheckFailed(exception);
-                }
 
-                _reminderScheduler.Start();
+                if (_notificationService is { IsAvailable: false })
+                {
+                    _notificationService.ShowUnavailableWarning();
+                }
+                else
+                {
+                    try
+                    {
+                        await _reminderScheduler.CheckAsync(DateTimeOffset.Now, CancellationToken.None);
+                    }
+                    catch (Exception exception)
+                    {
+                        HandleReminderCheckFailed(exception);
+                    }
+
+                    _reminderScheduler.Start();
+                }
             }
         }
         catch (Exception exception)
@@ -208,6 +216,13 @@ public partial class App : System.Windows.Application
 
     private void HandleReminderCheckFailed(Exception exception)
     {
+        if (exception is NotificationUnavailableException)
+        {
+            _reminderScheduler?.Dispose();
+            _reminderScheduler = null;
+            return;
+        }
+
         Dispatcher.Invoke(() =>
         {
             System.Windows.MessageBox.Show(

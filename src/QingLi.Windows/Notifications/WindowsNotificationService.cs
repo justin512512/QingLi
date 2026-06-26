@@ -29,6 +29,8 @@ public sealed class WindowsNotificationService :
         _notifyIcon.BalloonTipClicked += HandleBalloonTipClicked;
     }
 
+    public bool IsAvailable => !IsProcessElevated();
+
     public Task SendAsync(ReminderCandidate candidate, CancellationToken cancellationToken) =>
         ShowBirthdayAsync(candidate, cancellationToken);
 
@@ -39,7 +41,7 @@ public sealed class WindowsNotificationService :
         if (IsProcessElevated())
         {
             ShowAdminWarningOnce();
-            throw new InvalidOperationException(
+            throw new NotificationUnavailableException(
                 "通知功能需要普通用户运行。请退出后以普通用户身份重新启动轻历。");
         }
 
@@ -66,6 +68,8 @@ public sealed class WindowsNotificationService :
         }
     }
 
+    public void ShowUnavailableWarning() => ShowAdminWarningOnce();
+
     private void ShowAdminWarningOnce()
     {
         if (_adminWarningShown)
@@ -81,7 +85,7 @@ public sealed class WindowsNotificationService :
             MessageBoxImage.Warning);
     }
 
-    private static bool IsProcessElevated()
+    public static bool IsProcessElevated()
     {
         using var identity = WindowsIdentity.GetCurrent();
         var principal = new WindowsPrincipal(identity);
