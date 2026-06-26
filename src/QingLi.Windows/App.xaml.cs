@@ -56,7 +56,15 @@ public partial class App : System.Windows.Application
             if (_reminderScheduler is not null)
             {
                 _reminderScheduler.CheckFailed += HandleReminderCheckFailed;
-                await _reminderScheduler.CheckAsync(DateTimeOffset.Now, CancellationToken.None);
+                try
+                {
+                    await _reminderScheduler.CheckAsync(DateTimeOffset.Now, CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    HandleReminderCheckFailed(exception);
+                }
+
                 _reminderScheduler.Start();
             }
         }

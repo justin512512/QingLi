@@ -39,7 +39,8 @@ public sealed class WindowsNotificationService :
         if (IsProcessElevated())
         {
             ShowAdminWarningOnce();
-            return Task.CompletedTask;
+            throw new InvalidOperationException(
+                "通知功能需要普通用户运行。请退出后以普通用户身份重新启动轻历。");
         }
 
         var payload = NotificationPayloadBuilder.Build(candidate);

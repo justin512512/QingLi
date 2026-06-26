@@ -43,6 +43,32 @@ public sealed class ReminderSchedulerTests
         Assert.Empty(fixture.Notifications.Sent);
     }
 
+    [Fact]
+    public async Task Notification_failure_does_not_record_history()
+    {
+        var birthday = new Birthday(
+            Guid.NewGuid(), "小林", BirthdayCalendarKind.Gregorian,
+            1990, 8, 18, false, 3, new TimeOnly(9, 0), null, true);
+        var history = new History();
+        var scheduler = new ReminderScheduler(
+            new BirthdayRepository(birthday),
+            new ReminderPlanner(new BirthdayOccurrenceService()),
+            history,
+            new Suppression(),
+            new ThrowingNotificationSink(),
+            new DateTimeOffset(2027, 8, 15, 8, 0, 0, TimeSpan.FromHours(8)));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => scheduler.CheckAsync(
+                new DateTimeOffset(2027, 8, 15, 10, 0, 0, TimeSpan.FromHours(8)),
+                default));
+
+        Assert.False(await history.WasSentAsync(
+            birthday.Id,
+            new DateTimeOffset(2027, 8, 15, 9, 0, 0, TimeSpan.FromHours(8)),
+            default));
+    }
+
     private sealed class SchedulerFixture
     {
         public SchedulerFixture(DateTimeOffset? lastCheck = null)
@@ -123,5 +149,11 @@ public sealed class ReminderSchedulerTests
             Sent.Add(candidate);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ThrowingNotificationSink : IReminderNotificationSink
+    {
+        public Task SendAsync(ReminderCandidate candidate, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("notification failed");
     }
 }
