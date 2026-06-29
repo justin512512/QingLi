@@ -33,7 +33,7 @@
 - Produces: `CaptureAsync`, `HideAsync`, `RestoreAsync(SystemClockState)`.
 - Produces: `SystemClockState(bool ValueExisted, int? OriginalValue, DateTimeOffset CapturedAt)`.
 
-- [ ] **Step 1: 写恢复“不存在的原值”失败测试**
+- [x] **Step 1: 写恢复“不存在的原值”失败测试**
 
 ```csharp
 [Fact]
@@ -50,7 +50,7 @@ public async Task Restore_deletes_value_when_it_did_not_exist_before()
 }
 ```
 
-- [ ] **Step 2: 实现当前用户策略读写**
+- [x] **Step 2: 实现当前用户策略读写**
 
 路径固定为：
 
@@ -61,11 +61,11 @@ Value: HideClock
 
 `HideAsync` 写入 DWORD `1`；恢复时若原值不存在则删除，存在则原样写回。每次更改后广播 `WM_SETTINGCHANGE`，不得结束 Explorer 进程。
 
-- [ ] **Step 3: 写状态持久化测试**
+- [x] **Step 3: 写状态持久化测试**
 
 状态以 JSON 保存到 `%LOCALAPPDATA%\QingLi\system-clock-state.json`，必须先持久化快照，再修改策略；恢复成功后删除快照。
 
-- [ ] **Step 4: 运行测试并提交**
+- [x] **Step 4: 运行测试并提交**
 
 Run: `dotnet test QingLi.sln --filter ClockReplacement`
 
