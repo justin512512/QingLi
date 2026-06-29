@@ -69,7 +69,7 @@ public sealed class WindowsNotificationService :
 
         _adminWarningShown = true;
         System.Windows.MessageBox.Show(
-            "通知功能需要普通用户运行。请退出后以普通用户身份重新启动轻历。",
+            "当前以管理员身份运行，生日通知已暂停；日历等其他功能仍可正常使用。",
             "轻历",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);

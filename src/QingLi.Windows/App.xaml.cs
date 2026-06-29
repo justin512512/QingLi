@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
     private IReminderHistoryRepository? _reminderHistory;
     private ReminderScheduler? _reminderScheduler;
     private WindowsNotificationService? _notificationService;
+    private SingleInstanceCoordinator? _singleInstanceCoordinator;
 
     public IBirthdayRepository BirthdayRepository { get; private set; } = null!;
 
@@ -44,6 +45,15 @@ public partial class App : System.Windows.Application
 
         try
         {
+            _singleInstanceCoordinator = new SingleInstanceCoordinator("QingLi");
+            if (!await _singleInstanceCoordinator.TryAcquireAsync())
+            {
+                await _singleInstanceCoordinator.SignalPrimaryAsync("show-calendar");
+                Shutdown();
+                return;
+            }
+
+            _singleInstanceCoordinator.ActivationRequested += HandleActivationRequested;
             _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
             _birthdayManagerHost = new SingletonWindowHost(() => new WindowAdapter(CreateBirthdayManagerWindow()));
             _settingsHost = new SingletonWindowHost(() => new WindowAdapter(CreateSettingsWindow()));
@@ -77,6 +87,8 @@ public partial class App : System.Windows.Application
                     _reminderScheduler.Start();
                 }
             }
+
+            ShowCalendar();
         }
         catch (Exception exception)
         {
@@ -91,6 +103,13 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_singleInstanceCoordinator is not null)
+        {
+            _singleInstanceCoordinator.ActivationRequested -= HandleActivationRequested;
+            _singleInstanceCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            _singleInstanceCoordinator = null;
+        }
+
         if (_reminderScheduler is not null)
         {
             _reminderScheduler.CheckFailed -= HandleReminderCheckFailed;
@@ -171,6 +190,22 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        ShowCalendar();
+    }
+
+    private void ShowCalendar()
+    {
+        if (_calendarPopupViewModel is null)
+        {
+            return;
+        }
+
+        if (_calendarPopupWindow is { IsVisible: true })
+        {
+            _calendarPopupWindow.Activate();
+            return;
+        }
+
         if (_calendarPopupWindow is null)
         {
             _calendarPopupWindow = new CalendarPopupWindow(_calendarPopupViewModel);
@@ -179,6 +214,14 @@ public partial class App : System.Windows.Application
 
         _calendarPopupWindow.Show();
         _calendarPopupWindow.Activate();
+    }
+
+    private void HandleActivationRequested(string command)
+    {
+        if (string.Equals(command, "show-calendar", StringComparison.Ordinal))
+        {
+            Dispatcher.BeginInvoke(ShowCalendar);
+        }
     }
 
     private void ShowBirthdayManager() => _birthdayManagerHost?.Show();
