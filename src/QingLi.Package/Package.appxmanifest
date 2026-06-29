@@ -29,7 +29,7 @@
     <Application Id="QingLi" Executable="QingLi.Windows.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="轻历"
-        Description="本机日历和生日提醒"
+        Description="QingLi local calendar and birthday reminders"
         BackgroundColor="transparent"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Square150x150Logo="Assets\Square150x150Logo.png" />

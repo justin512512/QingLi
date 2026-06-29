@@ -21,7 +21,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1
 
 ## 手工验收清单
 
-在干净用户数据或备份后删除 `%LOCALAPPDATA%\QingLi` 的环境中验收：
+在干净用户数据环境中验收。必要时先备份并删除 `%LOCALAPPDATA%\QingLi`。
 
 - 全新安装或启动后，无需联网即可打开月历。
 - 可以新增公历生日；退出并重启后仍存在。
@@ -36,4 +36,4 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1
 
 ## 当前已知延期项
 
-当前 WPF 核心版使用托盘气泡通知路径完成本机提醒。完整 Windows App SDK actionable toast、通知按钮、MSIX toast activation/COM activation 的端到端安装包激活链路属于后续工作；在实现前，不应把这些能力列为已完成验收项。
+当前 WPF 核心版使用托盘气泡通知完成本地提醒。完整 Windows App SDK actionable toast、通知按钮、MSIX toast activation/COM activation 的端到端安装包激活链路属于后续工作；在实现前，不应把这些能力列为已完成验收项。
