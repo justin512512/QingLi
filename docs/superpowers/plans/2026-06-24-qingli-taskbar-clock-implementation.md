@@ -133,7 +133,7 @@ git commit -m "feat: locate Windows taskbar geometry"
 - Produces: `TaskbarClockViewModel.Update(DateTimeOffset now, AppSettings settings)`.
 - Produces: `ClockWindowController.ShowAsync`, `RepositionAsync`, `Hide`.
 
-- [ ] **Step 1: 写显示格式测试**
+- [x] **Step 1: 写显示格式测试**
 
 ```csharp
 [Theory]
@@ -149,7 +149,7 @@ public void Formats_time(bool useTwelveHour, string expected)
 }
 ```
 
-- [ ] **Step 2: 增加日期格式、字号和颜色测试**
+- [x] **Step 2: 增加日期格式、字号和颜色测试**
 
 ```csharp
 [Fact]
@@ -167,7 +167,7 @@ public void Applies_user_clock_appearance()
 }
 ```
 
-- [ ] **Step 3: 实现无边框时钟窗口**
+- [x] **Step 3: 实现无边框时钟窗口**
 
 ```xml
 <Window WindowStyle="None"
@@ -180,7 +180,7 @@ public void Applies_user_clock_appearance()
 
 窗口每秒更新时间；两行文本垂直居中；应用设置中的日期格式、字号和颜色；跟随主题，高对比度下改用系统颜色；点击调用现有日历弹窗。窗口不得抢占键盘焦点。
 
-- [ ] **Step 4: 连接定位控制器**
+- [x] **Step 4: 连接定位控制器**
 
 控制器只有在任务栏定位成功后才显示窗口。检测到位置越界、Explorer 重启或显示器变化时先隐藏，再重新定位。
 
@@ -195,7 +195,7 @@ dotnet run --project src/QingLi.Windows
 
 Expected: 测试全绿；测试开关打开后出现自定义时钟；点击打开日历；窗口不抢焦点。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```powershell
 git add src tests

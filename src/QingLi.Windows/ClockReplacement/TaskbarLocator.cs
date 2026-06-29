@@ -12,7 +12,14 @@ public interface ITaskbarNativeApi
     bool TryGetTaskbarForPoint(ScreenPoint screenPoint, out TaskbarNativeData data);
 }
 
-public sealed class TaskbarLocator
+public interface ITaskbarGeometryLocator
+{
+    TaskbarGeometry? GetPrimary();
+
+    TaskbarGeometry? GetForPoint(ScreenPoint screenPoint);
+}
+
+public sealed class TaskbarLocator : ITaskbarGeometryLocator
 {
     private const double GeometryTolerance = 1d;
     private const uint MinimumDpi = 48;
