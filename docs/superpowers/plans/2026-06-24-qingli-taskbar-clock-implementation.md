@@ -89,7 +89,7 @@ git commit -m "feat: safely hide and restore system clock"
 - Produces: `TaskbarLocator.GetPrimary()` 和 `GetForPoint(Point screenPoint)`.
 - Produces: `TaskbarGeometry(Rect Bounds, TaskbarEdge Edge, double DpiScale)`.
 
-- [ ] **Step 1: 写底部任务栏定位测试**
+- [x] **Step 1: 写底部任务栏定位测试**
 
 ```csharp
 [Fact]
@@ -102,15 +102,15 @@ public void Bottom_taskbar_places_clock_inside_right_edge()
 }
 ```
 
-- [ ] **Step 2: 实现纯函数布局**
+- [x] **Step 2: 实现纯函数布局**
 
 底部和顶部任务栏使用水平两行时钟；若检测到非底部布局则返回 `Unsupported`，保留托盘模式。尺寸按物理像素和 DPI 换算，禁止混用设备无关像素。
 
-- [ ] **Step 3: 使用 `SHAppBarMessage(ABM_GETTASKBARPOS)` 获取主任务栏**
+- [x] **Step 3: 使用 `SHAppBarMessage(ABM_GETTASKBARPOS)` 获取主任务栏**
 
 无法获取、矩形无效或高度异常时返回失败结果，不猜测位置。显示变化后重新查询。
 
-- [ ] **Step 4: 运行测试并提交**
+- [x] **Step 4: 运行测试并提交**
 
 Run: `dotnet test QingLi.sln --filter Taskbar`
 
