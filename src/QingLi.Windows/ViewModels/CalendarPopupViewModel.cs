@@ -28,6 +28,22 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
         _birthdayOccurrenceService = birthdayOccurrenceService;
         _today = today;
         _firstDayOfWeek = firstDayOfWeek;
+        WeekdayHeaders = Enumerable.Range(0, 7)
+            .Select(offset => (DayOfWeek)(((int)_firstDayOfWeek + offset) % 7))
+            .Select(day => new CalendarWeekdayHeader(
+                day switch
+                {
+                    DayOfWeek.Sunday => "日",
+                    DayOfWeek.Monday => "一",
+                    DayOfWeek.Tuesday => "二",
+                    DayOfWeek.Wednesday => "三",
+                    DayOfWeek.Thursday => "四",
+                    DayOfWeek.Friday => "五",
+                    DayOfWeek.Saturday => "六",
+                    _ => string.Empty
+                },
+                day is DayOfWeek.Saturday or DayOfWeek.Sunday))
+            .ToArray();
 
         PreviousMonthCommand = new AsyncCommand(() => LoadMonthAsync(DisplayMonth.AddMonths(-1)));
         NextMonthCommand = new AsyncCommand(() => LoadMonthAsync(DisplayMonth.AddMonths(1)));
@@ -37,6 +53,8 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<CalendarDayViewModel> Days { get; } = [];
+
+    public IReadOnlyList<CalendarWeekdayHeader> WeekdayHeaders { get; }
 
     public DateOnly DisplayMonth
     {
@@ -84,19 +102,18 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
         var birthdays = await _birthdayRepository.ListAsync(null, DisplayMonth, cancellationToken);
         var enabledBirthdays = birthdays.Where(birthday => birthday.IsEnabled).ToArray();
         var days = _calendarMonthService.Build(DisplayMonth.Year, DisplayMonth.Month, _firstDayOfWeek)
-            .Select(day => new CalendarDayViewModel(day))
+            .Select(day => new CalendarDayViewModel(day, _today))
             .ToArray();
 
+        var yearsInGrid = days.Select(day => day.Date.Year).Distinct().ToArray();
         foreach (var birthday in enabledBirthdays)
         {
-            var occurrence = _birthdayOccurrenceService.GetOccurrence(birthday, DisplayMonth.Year);
-            if (occurrence.Year != DisplayMonth.Year || occurrence.Month != DisplayMonth.Month)
+            foreach (var year in yearsInGrid)
             {
-                continue;
+                var occurrence = _birthdayOccurrenceService.GetOccurrence(birthday, year);
+                var day = days.FirstOrDefault(item => item.Date == occurrence);
+                day?.Birthdays.Add(birthday.Name);
             }
-
-            var day = days.FirstOrDefault(item => item.Date == occurrence);
-            day?.Birthdays.Add(birthday.Name);
         }
 
         Days.Clear();
@@ -113,3 +130,5 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
+
+public sealed record CalendarWeekdayHeader(string Text, bool IsWeekend);

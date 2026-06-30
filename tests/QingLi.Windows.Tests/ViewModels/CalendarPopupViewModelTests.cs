@@ -47,13 +47,25 @@ public sealed class CalendarPopupViewModelTests
         Assert.Contains("小林", vm.SelectedDay!.Birthdays);
     }
 
+    [Fact]
+    public void Weekday_headers_follow_configured_first_day()
+    {
+        var vm = CalendarPopupFixture.Create(
+            today: new DateOnly(2026, 6, 24),
+            firstDayOfWeek: DayOfWeek.Sunday);
+
+        Assert.Equal(["日", "一", "二", "三", "四", "五", "六"], vm.WeekdayHeaders.Select(day => day.Text));
+        Assert.True(vm.WeekdayHeaders[0].IsWeekend);
+    }
+
     private sealed class CalendarPopupFixture
     {
         private CalendarPopupFixture() { }
 
         public static CalendarPopupViewModel Create(
             DateOnly today,
-            IReadOnlyList<Birthday>? birthdays = null)
+            IReadOnlyList<Birthday>? birthdays = null,
+            DayOfWeek firstDayOfWeek = DayOfWeek.Monday)
         {
             var calendarMonthService = new CalendarMonthService(
                 new LunarCalendarService(),
@@ -65,7 +77,7 @@ public sealed class CalendarPopupViewModelTests
                 new BirthdayRepository(birthdays ?? []),
                 new BirthdayOccurrenceService(),
                 today,
-                DayOfWeek.Monday);
+                firstDayOfWeek);
         }
     }
 
