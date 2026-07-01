@@ -12,6 +12,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $artifactsDir = Join-Path $repoRoot "artifacts"
 $publishDir = Join-Path $artifactsDir "publish\$Runtime"
 $layoutDir = Join-Path $artifactsDir "msix-layout"
+$recoveryPublishDir = Join-Path $artifactsDir "publish-recovery\$Runtime"
 
 function Resolve-DotNet {
     param([string]$Candidate)
@@ -130,6 +131,15 @@ try {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+
+    if (Test-Path -LiteralPath $recoveryPublishDir) {
+        Remove-Item -LiteralPath $recoveryPublishDir -Recurse -Force
+    }
+    & $dotnet publish "src\QingLi.Recovery\QingLi.Recovery.csproj" -c $Configuration -r $Runtime --self-contained true -o $recoveryPublishDir
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+    Copy-Item -Path (Join-Path $recoveryPublishDir "QingLi.Recovery*") -Destination $publishDir -Force
 
     if (Test-Path -LiteralPath $portableZip) {
         Remove-Item -LiteralPath $portableZip -Force

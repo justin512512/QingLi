@@ -270,11 +270,11 @@ git commit -m "feat: coordinate safe clock replacement"
 **Interfaces:**
 - Produces: `QingLi.Recovery.exe --restore-clock`。
 
-- [ ] **Step 1: 建立恢复工具测试**
+- [x] **Step 1: 建立恢复工具测试**
 
 恢复逻辑复用 `WindowsSystemClockPolicy` 和 `SystemClockStateStore`；没有快照时删除轻历创建的 `HideClock=1`，但若检测到该值在安装前由用户策略明确存在，则不得删除。
 
-- [ ] **Step 2: 实现无 UI 恢复命令**
+- [x] **Step 2: 实现无 UI 恢复命令**
 
 ```csharp
 var result = await recovery.RestoreAsync(CancellationToken.None);
@@ -284,7 +284,7 @@ return result.IsSuccess ? 0 : 1;
 
 恢复工具不启动主应用、不显示日历、不需要管理员权限。
 
-- [ ] **Step 3: 接入卸载前恢复**
+- [x] **Step 3: 接入卸载前恢复**
 
 安装包卸载动作调用恢复工具；文档同时给出手动命令：
 
@@ -306,7 +306,7 @@ QingLi.Recovery.exe --restore-clock
 
 每一种场景都必须确认系统时钟可以恢复，且托盘模式仍可用。
 
-- [ ] **Step 5: 发布验证**
+- [x] **Step 5: 发布验证**
 
 Run:
 
@@ -317,7 +317,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1
 
 Expected: `0 failed`；安装包同时包含主程序与恢复工具。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```powershell
 git add QingLi.sln src/QingLi.Recovery src/QingLi.Package docs scripts

@@ -15,3 +15,4 @@ Taskbar Task 1: complete (review clean; 15 focused tests and 98 full-suite tests
 Taskbar Task 2: complete (review clean; multi-monitor lookup; 16 focused tests and 114 full-suite tests pass)
 Taskbar Task 3: implementation complete (review clean; 15 focused tests and 129 full-suite tests pass; integrated visual verification deferred to Task 4 enable/rollback wiring)
 Taskbar Task 4: complete (review clean after recovery-state remediation; 154 Release tests pass; opt-in settings and tray recovery wired)
+Taskbar Task 5: recovery tool implementation complete (review clean; 156 Release tests pass; portable package includes recovery executable)

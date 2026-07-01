@@ -15,5 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\QingLi.Core\QingLi.Core.csproj" />
     <ProjectReference Include="..\..\src\QingLi.Windows\QingLi.Windows.csproj" />
+    <ProjectReference Include="..\..\src\QingLi.Recovery\QingLi.Recovery.csproj" />
   </ItemGroup>
 </Project>
