@@ -3,14 +3,17 @@ using System.Diagnostics;
 using System.Windows;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
+using QingLi.Core.ClockReplacement;
 using QingLi.Core.Holidays;
 using QingLi.Core.Reminders;
 using QingLi.Core.Settings;
 using QingLi.Infrastructure.Birthdays;
+using QingLi.Infrastructure.ClockReplacement;
 using QingLi.Infrastructure.Data;
 using QingLi.Infrastructure.Holidays;
 using QingLi.Infrastructure.Reminders;
 using QingLi.Windows.Notifications;
+using QingLi.Windows.ClockReplacement;
 using QingLi.Windows.Scheduling;
 using QingLi.Infrastructure.Settings;
 using QingLi.Windows.Shell;
@@ -35,6 +38,9 @@ public partial class App : System.Windows.Application
     private ReminderScheduler? _reminderScheduler;
     private WindowsNotificationService? _notificationService;
     private SingleInstanceCoordinator? _singleInstanceCoordinator;
+    private ClockWindowController? _clockWindowController;
+    private IClockReplacementCoordinator? _clockReplacementCoordinator;
+    private ClockReplacementExitOrchestrator? _exitOrchestrator;
 
     public IBirthdayRepository BirthdayRepository { get; private set; } = null!;
 
@@ -54,15 +60,34 @@ public partial class App : System.Windows.Application
             }
 
             _singleInstanceCoordinator.ActivationRequested += HandleActivationRequested;
-            _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
-            _birthdayManagerHost = new SingletonWindowHost(() => new WindowAdapter(CreateBirthdayManagerWindow()));
-            _settingsHost = new SingletonWindowHost(() => new WindowAdapter(CreateSettingsWindow()));
+            await InitializeSettingsAsync();
+            CreateClockReplacementServices();
+
+            if (_clockReplacementCoordinator is not null)
+            {
+                var recovery = await _clockReplacementCoordinator.RecoverOnStartupAsync(
+                    _appSettings, CancellationToken.None);
+                _appSettings = recovery.Settings;
+                if (!recovery.Succeeded && !string.IsNullOrWhiteSpace(recovery.ErrorMessage))
+                {
+                    System.Windows.MessageBox.Show(
+                        recovery.ErrorMessage,
+                        "轻历",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+
             _trayIconService = new TrayIconService(
                 ToggleCalendar,
                 onAddBirthday: ShowBirthdayManager,
                 onOpenSettings: ShowSettings,
                 onPauseTodayReminders: PauseTodayReminders,
-                onExit: Shutdown);
+                onRestoreSystemClock: RestoreSystemClock,
+                onExit: ExitSafely);
+            _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
+            _birthdayManagerHost = new SingletonWindowHost(() => new WindowAdapter(CreateBirthdayManagerWindow()));
+            _settingsHost = new SingletonWindowHost(() => new WindowAdapter(CreateSettingsWindow()));
             CreateReminderScheduler();
 
             if (_reminderScheduler is not null)
@@ -92,12 +117,18 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
+            var safeToShutdown = await TryRestoreAfterStartupFailureAsync();
             System.Windows.MessageBox.Show(
-                $"轻历无法启动：{exception.Message}",
+                safeToShutdown
+                    ? $"轻历无法启动：{exception.Message}"
+                    : $"轻历启动失败，且系统时钟尚未恢复。程序将继续运行，请使用托盘中的“恢复系统时钟”后再退出。\n\n{exception.Message}",
                 "轻历",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
-            Shutdown(-1);
+            if (safeToShutdown)
+            {
+                Shutdown(-1);
+            }
         }
     }
 
@@ -117,16 +148,21 @@ public partial class App : System.Windows.Application
         }
 
         _notificationService?.Dispose();
+        _clockWindowController?.Dispose();
         _trayIconService?.Dispose();
         _calendarPopupWindow?.Close();
         base.OnExit(e);
     }
 
+    private async Task InitializeSettingsAsync()
+    {
+        _settingsStore = new JsonSettingsStore(Path.Combine(AppPaths.DataDirectory, "settings.json"));
+        _appSettings = await _settingsStore.LoadAsync(CancellationToken.None);
+    }
+
     private async Task<CalendarPopupViewModel> CreateCalendarPopupViewModelAsync()
     {
         Directory.CreateDirectory(AppPaths.DataDirectory);
-        _settingsStore = new JsonSettingsStore(Path.Combine(AppPaths.DataDirectory, "settings.json"));
-        _appSettings = await _settingsStore.LoadAsync(CancellationToken.None);
 
         var connectionFactory = new SqliteConnectionFactory(AppPaths.DatabasePath);
         var migrationResult = await new DatabaseMigrator(connectionFactory).TryMigrateAsync(CancellationToken.None);
@@ -228,6 +264,90 @@ public partial class App : System.Windows.Application
 
     private void ShowSettings() => _settingsHost?.Show();
 
+    private void CreateClockReplacementServices()
+    {
+        if (_settingsStore is null)
+        {
+            throw new InvalidOperationException("Settings store is not initialized.");
+        }
+
+        var locator = new TaskbarLocator();
+        _clockWindowController = new ClockWindowController(
+            locator,
+            () => new TaskbarClockWindow(
+                new TaskbarClockViewModel(() => SystemParameters.HighContrast),
+                () => _appSettings,
+                ToggleCalendar),
+            new Win32TaskbarWindowPositioner());
+        _clockReplacementCoordinator = new ClockReplacementCoordinator(
+            new Windows11TaskbarCompatibility(locator),
+            new WindowsSystemClockPolicy(),
+            new SystemClockStateStore(),
+            _clockWindowController,
+            _settingsStore);
+        _exitOrchestrator = new ClockReplacementExitOrchestrator(
+            _clockReplacementCoordinator,
+            () => _appSettings,
+            settings => _appSettings = settings,
+            ShowClockReplacementWarning,
+            Shutdown);
+    }
+
+    private async void RestoreSystemClock()
+    {
+        if (_clockReplacementCoordinator is null)
+        {
+            return;
+        }
+
+        var result = await _clockReplacementCoordinator.SetEnabledAsync(
+            false, _appSettings, CancellationToken.None);
+        _appSettings = result.Settings;
+        if (!result.Succeeded)
+        {
+            System.Windows.MessageBox.Show(
+                result.ErrorMessage ?? "无法恢复系统时钟",
+                "轻历",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private async void ExitSafely()
+    {
+        if (_exitOrchestrator is not null)
+        {
+            await _exitOrchestrator.TryExitAsync();
+        }
+    }
+
+    private async Task<bool> TryRestoreAfterStartupFailureAsync()
+    {
+        if (_clockReplacementCoordinator is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            var result = await _clockReplacementCoordinator.SetEnabledAsync(
+                false, _appSettings, CancellationToken.None);
+            _appSettings = result.Settings;
+            return !result.Settings.ReplaceSystemClock;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void ShowClockReplacementWarning(string message) =>
+        System.Windows.MessageBox.Show(
+            message,
+            "轻历",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+
     private void CreateReminderScheduler()
     {
         if (_trayIconService is null || _reminderSuppression is null || _reminderHistory is null)
@@ -314,7 +434,9 @@ public partial class App : System.Windows.Application
             startupTaskService,
             executablePath,
             () => SystemParameters.HighContrast,
-            OpenDirectory);
+            OpenDirectory,
+            _clockReplacementCoordinator,
+            settings => _appSettings = settings);
 
         return new SettingsWindow(viewModel);
     }

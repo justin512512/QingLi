@@ -14,7 +14,8 @@ public sealed record AppSettings(
     bool UseTwelveHourClock,
     string DateFormat,
     double ClockFontSize,
-    string? ClockTextColor)
+    string? ClockTextColor,
+    bool ReplaceSystemClock = false)
 {
     public static AppSettings Default { get; } = new(
         AppTheme.System,
@@ -23,7 +24,8 @@ public sealed record AppSettings(
         false,
         "M月d日 ddd",
         12,
-        null);
+        null,
+        false);
 }
 
 public interface ISettingsStore

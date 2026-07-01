@@ -214,7 +214,7 @@ git commit -m "feat: show custom taskbar clock window"
 **Interfaces:**
 - Produces: `EnableAsync`, `DisableAsync`, `RecoverIfNeededAsync`.
 
-- [ ] **Step 1: 写“窗口创建失败则恢复系统时钟”测试**
+- [x] **Step 1: 写“窗口创建失败则恢复系统时钟”测试**
 
 ```csharp
 [Fact]
@@ -228,7 +228,7 @@ public async Task Enable_restores_system_clock_when_custom_clock_fails()
 }
 ```
 
-- [ ] **Step 2: 实现严格启用顺序**
+- [x] **Step 2: 实现严格启用顺序**
 
 1. 检测 Windows 11 和任务栏兼容性。
 2. 保存系统时钟状态快照。
@@ -238,15 +238,15 @@ public async Task Enable_restores_system_clock_when_custom_clock_fails()
 
 任一步失败都逆序回滚；成功前不得把设置标记为启用。
 
-- [ ] **Step 3: 实现启动恢复**
+- [x] **Step 3: 实现启动恢复**
 
 若发现状态快照存在但设置未启用，说明上次过程未完成，立即恢复系统时钟。若设置启用但自定义窗口无法创建，也立即恢复并关闭替换模式。
 
-- [ ] **Step 4: 增加托盘恢复入口**
+- [x] **Step 4: 增加托盘恢复入口**
 
 托盘菜单“恢复系统时钟”始终可见；点击后执行恢复、关闭自定义窗口并清除替换设置。
 
-- [ ] **Step 5: 运行测试并提交**
+- [x] **Step 5: 运行测试并提交**
 
 Run: `dotnet test QingLi.sln`
 

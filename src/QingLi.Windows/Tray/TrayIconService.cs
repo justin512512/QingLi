@@ -10,6 +10,7 @@ public sealed class TrayIconService : IDisposable
     private readonly Action _onAddBirthday;
     private readonly Action _onOpenSettings;
     private readonly Action _onPauseTodayReminders;
+    private readonly Action _onRestoreSystemClock;
     private readonly Action _onExit;
 
     public TrayIconService(
@@ -17,6 +18,7 @@ public sealed class TrayIconService : IDisposable
         Action onAddBirthday,
         Action onOpenSettings,
         Action onPauseTodayReminders,
+        Action onRestoreSystemClock,
         Action onExit,
         Icon? icon = null)
     {
@@ -24,6 +26,7 @@ public sealed class TrayIconService : IDisposable
         _onAddBirthday = onAddBirthday;
         _onOpenSettings = onOpenSettings;
         _onPauseTodayReminders = onPauseTodayReminders;
+        _onRestoreSystemClock = onRestoreSystemClock;
         _onExit = onExit;
 
         ContextMenuStrip = BuildMenu();
@@ -81,6 +84,7 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add("添加生日", null, (_, _) => _onAddBirthday());
         menu.Items.Add("设置", null, (_, _) => _onOpenSettings());
         menu.Items.Add("暂停今日提醒", null, (_, _) => _onPauseTodayReminders());
+        menu.Items.Add("恢复系统时钟", null, (_, _) => _onRestoreSystemClock());
         menu.Items.Add("退出", null, (_, _) => _onExit());
         return menu;
     }

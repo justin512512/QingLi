@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using QingLi.Core.Settings;
+using QingLi.Windows.ClockReplacement;
 using QingLi.Windows.Startup;
 
 namespace QingLi.Windows.ViewModels;
@@ -13,6 +14,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private readonly string _executablePath;
     private readonly Func<bool> _isHighContrast;
     private readonly Action<string> _openDirectory;
+    private readonly IClockReplacementCoordinator? _clockReplacementCoordinator;
+    private readonly Action<AppSettings> _onSettingsSaved;
     private AppTheme _theme = AppSettings.Default.Theme;
     private DayOfWeek _firstDayOfWeek = AppSettings.Default.FirstDayOfWeek;
     private bool _startWithWindows = AppSettings.Default.StartWithWindows;
@@ -20,6 +23,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private string _dateFormat = AppSettings.Default.DateFormat;
     private string _clockFontSizeText = AppSettings.Default.ClockFontSize.ToString(CultureInfo.InvariantCulture);
     private string? _clockTextColor = AppSettings.Default.ClockTextColor;
+    private bool _replaceSystemClock = AppSettings.Default.ReplaceSystemClock;
+    private bool _loadedReplaceSystemClock = AppSettings.Default.ReplaceSystemClock;
     private IReadOnlyList<string> _validationErrors = [];
     private string _saveErrorMessage = string.Empty;
 
@@ -28,13 +33,17 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         IStartupTaskService startupTaskService,
         string executablePath,
         Func<bool> isHighContrast,
-        Action<string> openDirectory)
+        Action<string> openDirectory,
+        IClockReplacementCoordinator? clockReplacementCoordinator = null,
+        Action<AppSettings>? onSettingsSaved = null)
     {
         _settingsStore = settingsStore;
         _startupTaskService = startupTaskService;
         _executablePath = executablePath;
         _isHighContrast = isHighContrast;
         _openDirectory = openDirectory;
+        _clockReplacementCoordinator = clockReplacementCoordinator;
+        _onSettingsSaved = onSettingsSaved ?? (_ => { });
 
         LoadCommand = new AsyncCommand(LoadAsync);
         SaveCommand = new AsyncCommand(SaveAsync);
@@ -98,6 +107,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool ReplaceSystemClock
+    {
+        get => _replaceSystemClock;
+        set => SetField(ref _replaceSystemClock, value);
+    }
+
     public IReadOnlyList<string> ValidationErrors
     {
         get => _validationErrors;
@@ -121,9 +136,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             ? "System"
             : string.IsNullOrWhiteSpace(ClockTextColor) ? "Default" : ClockTextColor;
 
-    public bool CanReplaceSystemClock => false;
+    public bool CanReplaceSystemClock => _clockReplacementCoordinator?.IsCompatible == true;
 
-    public string ReplaceSystemClockMessage => "下一阶段提供";
+    public string ReplaceSystemClockMessage =>
+        _clockReplacementCoordinator?.CompatibilityMessage ?? "当前使用托盘模式";
 
     private async Task LoadAsync()
     {
@@ -134,6 +150,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         DateFormat = settings.DateFormat;
         ClockFontSizeText = settings.ClockFontSize.ToString(CultureInfo.InvariantCulture);
         ClockTextColor = settings.ClockTextColor;
+        ReplaceSystemClock = settings.ReplaceSystemClock;
+        _loadedReplaceSystemClock = settings.ReplaceSystemClock;
         StartWithWindows = await Task.Run(() => _startupTaskService.IsEnabled(_executablePath));
     }
 
@@ -160,7 +178,34 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 startupChanged = true;
             }
 
-            await _settingsStore.SaveAsync(settings!, CancellationToken.None);
+            AppSettings savedSettings;
+            if (_clockReplacementCoordinator is not null &&
+                settings!.ReplaceSystemClock != _loadedReplaceSystemClock)
+            {
+                var result = await _clockReplacementCoordinator.SetEnabledAsync(
+                    settings.ReplaceSystemClock, settings, CancellationToken.None);
+                ReplaceSystemClock = result.Settings.ReplaceSystemClock;
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        result.ErrorMessage ?? "无法更新系统时钟替换状态");
+                }
+
+                savedSettings = result.Settings;
+            }
+            else
+            {
+                savedSettings = settings! with
+                {
+                    ReplaceSystemClock = _clockReplacementCoordinator is null
+                        ? false
+                        : settings.ReplaceSystemClock
+                };
+                await _settingsStore.SaveAsync(savedSettings, CancellationToken.None);
+            }
+
+            _loadedReplaceSystemClock = savedSettings.ReplaceSystemClock;
+            _onSettingsSaved(savedSettings);
         }
         catch
         {
@@ -211,7 +256,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 UseTwelveHourClock,
                 DateFormat,
                 clockFontSize,
-                ClockTextColor);
+                ClockTextColor,
+                ReplaceSystemClock);
             return true;
         }
 

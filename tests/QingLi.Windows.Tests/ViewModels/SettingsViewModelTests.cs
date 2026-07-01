@@ -1,6 +1,7 @@
 using QingLi.Core.Settings;
 using QingLi.Windows;
 using QingLi.Windows.Startup;
+using QingLi.Windows.ClockReplacement;
 using QingLi.Windows.ViewModels;
 
 namespace QingLi.Windows.Tests.ViewModels;
@@ -128,7 +129,7 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public void Replace_system_clock_is_disabled_in_this_phase()
+    public void Replace_system_clock_is_hidden_without_compatible_coordinator()
     {
         var vm = new SettingsViewModel(
             new RecordingSettingsStore(),
@@ -138,7 +139,55 @@ public sealed class SettingsViewModelTests
             _ => { });
 
         Assert.False(vm.CanReplaceSystemClock);
-        Assert.Equal("下一阶段提供", vm.ReplaceSystemClockMessage);
+        Assert.Equal("当前使用托盘模式", vm.ReplaceSystemClockMessage);
+    }
+
+    [Fact]
+    public async Task Compatible_clock_toggle_is_sent_to_coordinator_and_saved_result_is_published()
+    {
+        var coordinator = new RecordingClockReplacementCoordinator();
+        AppSettings? published = null;
+        var vm = new SettingsViewModel(
+            new RecordingSettingsStore(),
+            new RecordingStartupTaskService(),
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { },
+            coordinator,
+            settings => published = settings);
+
+        await vm.LoadCommand.ExecuteAsync();
+        vm.ReplaceSystemClock = true;
+        await vm.SaveCommand.ExecuteAsync();
+
+        Assert.True(vm.CanReplaceSystemClock);
+        Assert.True(Assert.Single(coordinator.Requests).Enabled);
+        Assert.True(published?.ReplaceSystemClock);
+        Assert.Null(vm.SaveCommand.LastError);
+    }
+
+    [Fact]
+    public async Task Clock_replacement_failure_is_visible_and_keeps_settings_window_open()
+    {
+        var coordinator = new RecordingClockReplacementCoordinator
+        {
+            ResultFactory = settings => new(false, settings with { ReplaceSystemClock = false }, "替换失败")
+        };
+        var vm = new SettingsViewModel(
+            new RecordingSettingsStore(),
+            new RecordingStartupTaskService(),
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { },
+            coordinator);
+
+        await vm.LoadCommand.ExecuteAsync();
+        vm.ReplaceSystemClock = true;
+        await vm.SaveCommand.ExecuteAsync();
+
+        Assert.Equal("替换失败", vm.SaveErrorMessage);
+        Assert.False(vm.ReplaceSystemClock);
+        Assert.False(vm.CanCloseAfterSave);
     }
 
     [Fact]
@@ -239,5 +288,25 @@ public sealed class SettingsViewModelTests
             _isEnabled = enabled;
             SetCalls.Add((enabled, executablePath));
         }
+    }
+
+    private sealed class RecordingClockReplacementCoordinator : IClockReplacementCoordinator
+    {
+        public List<(bool Enabled, AppSettings Settings)> Requests { get; } = [];
+        public Func<AppSettings, ClockReplacementResult>? ResultFactory { get; set; }
+        public bool IsCompatible => true;
+        public string CompatibilityMessage => "可用";
+
+        public Task<ClockReplacementResult> SetEnabledAsync(
+            bool enabled, AppSettings settings, CancellationToken cancellationToken)
+        {
+            Requests.Add((enabled, settings));
+            return Task.FromResult(ResultFactory?.Invoke(settings) ??
+                new ClockReplacementResult(true, settings with { ReplaceSystemClock = enabled }));
+        }
+
+        public Task<ClockReplacementResult> RecoverOnStartupAsync(
+            AppSettings settings, CancellationToken cancellationToken) =>
+            Task.FromResult(new ClockReplacementResult(true, settings));
     }
 }

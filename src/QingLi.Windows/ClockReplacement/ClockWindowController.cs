@@ -19,7 +19,14 @@ public interface ITaskbarWindowPositioner
     bool TryPosition(nint windowHandle, Rect physicalBounds);
 }
 
-public sealed class ClockWindowController : IDisposable
+public interface IClockWindowController
+{
+    Task<bool> ShowAsync(CancellationToken cancellationToken);
+
+    void Hide();
+}
+
+public sealed class ClockWindowController : IClockWindowController, IDisposable
 {
     private const double ClockWidthInDips = 104;
 
