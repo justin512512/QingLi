@@ -44,11 +44,12 @@ public sealed class CalendarPopupLayoutTests
         var dragHandleAffordance = FindNamed(document, "DragHandleAffordance");
 
         Assert.NotNull(dragHandle);
-        Assert.Equal("28", dragHandle!.Attribute("Height")?.Value);
+        Assert.Equal("Thumb", dragHandle!.Name.LocalName);
+        Assert.Equal("28", dragHandle.Attribute("Height")?.Value);
         Assert.Equal("Top", dragHandle.Attribute("VerticalAlignment")?.Value);
         Assert.Equal("SizeAll", dragHandle.Attribute("Cursor")?.Value);
         Assert.Equal("OnDragHandleMouseLeftButtonDown",
-            dragHandle.Attributes().Single(attribute => attribute.Name.LocalName == "MouseLeftButtonDown").Value);
+            dragHandle.Attributes().Single(attribute => attribute.Name.LocalName == "PreviewMouseLeftButtonDown").Value);
         Assert.False(string.IsNullOrWhiteSpace(dragHandle.Attribute("ToolTip")?.Value));
         Assert.False(string.IsNullOrWhiteSpace(
             dragHandle.Attribute("AutomationProperties.HelpText")?.Value));
