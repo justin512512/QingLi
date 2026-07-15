@@ -58,6 +58,31 @@ public sealed class CalendarPopupViewModelTests
         Assert.True(vm.WeekdayHeaders[0].IsWeekend);
     }
 
+    [Fact]
+    public async Task SlowerOldMonthLoadCannotOverwriteNewMonth()
+    {
+        var delayedRepository = new DelayedBirthdayRepository();
+        var vm = new CalendarPopupViewModel(
+            new CalendarMonthService(
+                new LunarCalendarService(),
+                new SolarTermService(),
+                new HolidayService()),
+            delayedRepository,
+            new BirthdayOccurrenceService(),
+            new DateOnly(2026, 6, 24),
+            DayOfWeek.Monday);
+
+        var june = vm.LoadMonthAsync(new DateOnly(2026, 6, 1));
+        await delayedRepository.WaitUntilJuneStartsAsync();
+        await vm.LoadMonthAsync(new DateOnly(2026, 7, 1));
+        delayedRepository.CompleteJune();
+        await june;
+
+        Assert.Equal(new DateOnly(2026, 7, 1), vm.DisplayMonth);
+        Assert.All(vm.Days.Where(day => day.IsCurrentMonth), day => Assert.Equal(7, day.Date.Month));
+        Assert.DoesNotContain(vm.Days.SelectMany(day => day.Birthdays), name => name == "过期结果");
+    }
+
     private sealed class CalendarPopupFixture
     {
         private CalendarPopupFixture() { }
@@ -97,5 +122,34 @@ public sealed class CalendarPopupViewModelTests
 
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+    }
+
+    private sealed class DelayedBirthdayRepository : IBirthdayRepository
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<IReadOnlyList<Birthday>> ListAsync(
+            string? nameFilter,
+            DateOnly today,
+            CancellationToken cancellationToken)
+        {
+            if (today.Month == 6)
+            {
+                _started.TrySetResult();
+                await _completion.Task;
+                return [new Birthday(
+                    Guid.NewGuid(), "过期结果", BirthdayCalendarKind.Gregorian,
+                    1990, 7, 15, false, 3, new TimeOnly(9, 0), null, true)];
+            }
+
+            return [];
+        }
+
+        public Task<Birthday?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<Birthday?>(null);
+        public Task SaveAsync(Birthday birthday, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task WaitUntilJuneStartsAsync() => _started.Task;
+        public void CompleteJune() => _completion.TrySetResult();
     }
 }

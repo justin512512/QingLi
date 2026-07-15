@@ -15,6 +15,7 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
     private readonly DayOfWeek _firstDayOfWeek;
     private DateOnly _displayMonth;
     private CalendarDayViewModel? _selectedDay;
+    private long _loadVersion;
 
     public CalendarPopupViewModel(
         CalendarMonthService calendarMonthService,
@@ -97,11 +98,18 @@ public sealed class CalendarPopupViewModel : INotifyPropertyChanged
 
     public async Task LoadMonthAsync(DateOnly month, CancellationToken cancellationToken = default)
     {
-        DisplayMonth = new DateOnly(month.Year, month.Month, 1);
+        var version = Interlocked.Increment(ref _loadVersion);
+        var requestedMonth = new DateOnly(month.Year, month.Month, 1);
+        DisplayMonth = requestedMonth;
 
-        var birthdays = await _birthdayRepository.ListAsync(null, DisplayMonth, cancellationToken);
+        var birthdays = await _birthdayRepository.ListAsync(null, requestedMonth, cancellationToken);
+        if (version != Volatile.Read(ref _loadVersion))
+        {
+            return;
+        }
+
         var enabledBirthdays = birthdays.Where(birthday => birthday.IsEnabled).ToArray();
-        var days = _calendarMonthService.Build(DisplayMonth.Year, DisplayMonth.Month, _firstDayOfWeek)
+        var days = _calendarMonthService.Build(requestedMonth.Year, requestedMonth.Month, _firstDayOfWeek)
             .Select(day => new CalendarDayViewModel(day, _today))
             .ToArray();
 
