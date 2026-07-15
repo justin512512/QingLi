@@ -21,6 +21,7 @@ public sealed class CalendarPopupLayoutSession : IDisposable
     private long _initializationVersion;
     private long _changeVersion;
     private bool _initialized;
+    private bool _resetInProgress;
     private bool _disposed;
 
     public CalendarPopupLayoutSession(
@@ -92,7 +93,7 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_initialized)
+            if (!_initialized || _resetInProgress)
             {
                 return;
             }
@@ -116,7 +117,7 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_initialized)
+            if (!_initialized || _resetInProgress)
             {
                 return;
             }
@@ -140,15 +141,23 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         Task<Rect>? initialization;
         CancellationTokenSource? pendingSaveCancellation;
         Task pendingSave;
+        bool wasInitialized;
+        bool wasCustomized;
         lock (_sync)
         {
             ThrowIfDisposed();
+            if (_resetInProgress)
+            {
+                throw new InvalidOperationException("A calendar popup layout reset is already in progress.");
+            }
+
+            _resetInProgress = true;
+            wasInitialized = _initialized;
+            wasCustomized = IsCustomized;
             _initializationVersion++;
             _initializationCancellation?.Cancel();
             initializationCancellation = _initializationCancellation;
             initialization = _initializationTask;
-            _initialized = false;
-            IsCustomized = false;
             _changeVersion++;
             _pendingSaveCancellation?.Cancel();
             pendingSaveCancellation = _pendingSaveCancellation;
@@ -173,8 +182,35 @@ public sealed class CalendarPopupLayoutSession : IDisposable
             }
         }
 
-        await _store.ClearAsync(cancellationToken);
-        LastPersistenceError = null;
+        try
+        {
+            await _store.ClearAsync(cancellationToken);
+        }
+        catch
+        {
+            lock (_sync)
+            {
+                if (!_disposed)
+                {
+                    _initialized = wasInitialized;
+                    IsCustomized = wasCustomized;
+                    _resetInProgress = false;
+                }
+            }
+
+            throw;
+        }
+
+        lock (_sync)
+        {
+            if (!_disposed)
+            {
+                _initialized = false;
+                IsCustomized = false;
+                LastPersistenceError = null;
+                _resetInProgress = false;
+            }
+        }
     }
 
     public void Dispose()

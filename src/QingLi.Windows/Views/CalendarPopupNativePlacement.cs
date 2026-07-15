@@ -43,4 +43,49 @@ internal static class CalendarPopupNativePlacement
             throw new InvalidOperationException("Unable to apply the calendar popup's physical bounds.");
         }
     }
+
+    internal static bool TryApplyWithFallback(
+        nint windowHandle,
+        Rect targetPhysicalBounds,
+        Rect safePhysicalBounds,
+        Action<Exception>? reportFailure = null,
+        Func<nint, int, int, int, int, bool>? setWindowPosition = null)
+    {
+        Exception targetFailure;
+        try
+        {
+            Apply(windowHandle, targetPhysicalBounds, setWindowPosition);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            targetFailure = exception;
+        }
+
+        var fallbackApplied = false;
+        Exception? fallbackFailure = null;
+        try
+        {
+            Apply(windowHandle, safePhysicalBounds, setWindowPosition);
+            fallbackApplied = true;
+        }
+        catch (Exception exception)
+        {
+            fallbackFailure = exception;
+        }
+
+        var reported = fallbackFailure is null
+            ? targetFailure
+            : new AggregateException(targetFailure, fallbackFailure);
+        try
+        {
+            reportFailure?.Invoke(reported);
+        }
+        catch
+        {
+            // Placement failure reporting must never crash the Dispatcher.
+        }
+
+        return fallbackApplied;
+    }
 }

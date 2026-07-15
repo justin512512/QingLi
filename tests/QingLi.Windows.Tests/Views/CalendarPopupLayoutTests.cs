@@ -55,7 +55,7 @@ public sealed class CalendarPopupLayoutTests
         Assert.Contains("FormsScreen.AllScreens", source);
         Assert.Contains("CalendarPopupMonitorDpi.GetForScreen", source);
         Assert.Contains("CalendarPopupScreenGeometry.PlaceNearCursor", source);
-        Assert.Contains("CalendarPopupNativePlacement.Apply", source);
+        Assert.Contains("CalendarPopupNativePlacement.TryApplyWithFallback", source);
         Assert.Contains("User32.GetWindowRect", source);
         Assert.Contains("catch (OperationCanceledException)", source);
         Assert.DoesNotContain("GetWorkAreasInDips", source);

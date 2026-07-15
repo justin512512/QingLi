@@ -294,6 +294,58 @@ public sealed class CalendarPopupLayoutSessionTests
             await session.InitializeAsync(DefaultBounds, MinimumSize, 28));
     }
 
+    [Fact]
+    public async Task ClearFailureRollsBackResetAndKeepsPersistenceOperational()
+    {
+        var failure = new IOException("clear failed");
+        var store = new FakeStore
+        {
+            Loaded = new CalendarPopupLayout(
+                100, 120, 900, 500, true, Primary.DeviceName),
+            ClearOperation = _ => Task.FromException(failure)
+        };
+        var delay = new ControlledDelay();
+        using var session = CreateSession(store, delay.DelayAsync);
+        await session.InitializeAsync(DefaultBounds, MinimumSize, 28);
+        Assert.True(session.IsCustomized);
+
+        var actual = await Assert.ThrowsAsync<IOException>(() => session.ResetAsync());
+
+        Assert.Same(failure, actual);
+        Assert.True(session.IsCustomized);
+        session.RecordLayoutChange(new Rect(200, 220, 900, 500));
+        await delay.WaitForCountAsync(1);
+        delay.Complete(0);
+        await store.WaitForSaveAttemptCountAsync(1);
+        Assert.Single(store.Saved);
+    }
+
+    [Fact]
+    public async Task ClearCancellationRollsBackResetAndKeepsPersistenceOperational()
+    {
+        var store = new FakeStore
+        {
+            Loaded = new CalendarPopupLayout(
+                100, 120, 900, 500, true, Primary.DeviceName),
+            ClearOperation = token => Task.FromCanceled(token)
+        };
+        var delay = new ControlledDelay();
+        using var session = CreateSession(store, delay.DelayAsync);
+        await session.InitializeAsync(DefaultBounds, MinimumSize, 28);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            session.ResetAsync(cancellation.Token));
+
+        Assert.True(session.IsCustomized);
+        session.RecordLayoutChange(new Rect(200, 220, 900, 500));
+        await delay.WaitForCountAsync(1);
+        delay.Complete(0);
+        await store.WaitForSaveAttemptCountAsync(1);
+        Assert.Single(store.Saved);
+    }
+
     public static TheoryData<CalendarPopupLayout?> UnusableLayouts => new()
     {
         null,
@@ -328,6 +380,7 @@ public sealed class CalendarPopupLayoutSessionTests
 
         public CalendarPopupLayout? Loaded { get; init; }
         public Exception? LoadFailure { get; init; }
+        public Func<CancellationToken, Task>? ClearOperation { get; init; }
         public List<CalendarPopupLayout> Saved { get; } = [];
         public ConcurrentQueue<Exception> SaveFailures { get; } = new();
 
@@ -350,7 +403,8 @@ public sealed class CalendarPopupLayoutSessionTests
             return Task.CompletedTask;
         }
 
-        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ClearAsync(CancellationToken cancellationToken) =>
+            ClearOperation?.Invoke(cancellationToken) ?? Task.CompletedTask;
 
         public async Task WaitForSaveAttemptCountAsync(int count)
         {

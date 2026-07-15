@@ -47,6 +47,9 @@ public partial class CalendarPopupWindow : Window
     public event Action<DateOnly>? AddAnniversaryRequested;
     public event Action? SettingsRequested;
     public event Action<UpcomingEventViewModel>? UpcomingEventRequested;
+    public event Action<Exception>? LayoutPlacementFailed;
+
+    public Exception? LastLayoutPlacementError { get; private set; }
 
     private CalendarDashboardViewModel? ViewModel => DataContext as CalendarDashboardViewModel;
 
@@ -323,9 +326,16 @@ public partial class CalendarPopupWindow : Window
         _applyingLayout = true;
         try
         {
-            CalendarPopupNativePlacement.Apply(
-                new WindowInteropHelper(this).Handle,
-                bounds);
+            var handle = new WindowInteropHelper(this).Handle;
+            var safeBounds = User32.GetWindowRect(handle, out var currentBounds)
+                ? currentBounds.ToRect()
+                : defaultBounds;
+            LastLayoutPlacementError = null;
+            CalendarPopupNativePlacement.TryApplyWithFallback(
+                handle,
+                bounds,
+                safeBounds,
+                ReportLayoutPlacementFailure);
             _layoutInitialized = true;
         }
         finally
@@ -377,4 +387,11 @@ public partial class CalendarPopupWindow : Window
 
     private static IReadOnlyList<CalendarPopupPhysicalScreen> GetPhysicalScreens() =>
         FormsScreen.AllScreens.Select(CalendarPopupMonitorDpi.GetForScreen).ToArray();
+
+    private void ReportLayoutPlacementFailure(Exception exception)
+    {
+        LastLayoutPlacementError = exception;
+        Trace.TraceWarning($"Calendar popup placement failed: {exception.Message}");
+        LayoutPlacementFailed?.Invoke(exception);
+    }
 }
