@@ -22,6 +22,7 @@ using QingLi.Windows.Notifications;
 using QingLi.Windows.ClockReplacement;
 using QingLi.Windows.Scheduling;
 using QingLi.Infrastructure.Settings;
+using QingLi.Infrastructure.Updates;
 using QingLi.Windows.Shell;
 using QingLi.Windows.Startup;
 using QingLi.Windows.Tray;
@@ -229,11 +230,13 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            var path = Path.Combine(
+            var bundledPath = Path.Combine(
                 AppContext.BaseDirectory,
                 "Assets",
                 "History",
                 "history-today.zh-CN.json");
+            var path = new ValidatedDataPackageStore(Path.Combine(AppPaths.DataDirectory, "updates"))
+                .ResolvePackagePath("history-today", bundledPath);
             return await JsonHistoryTodayProvider.LoadAsync(path);
         }
         catch
@@ -246,7 +249,9 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            var holidayPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Holidays", "cn-2026.json");
+            var bundledPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Holidays", "cn-2026.json");
+            var holidayPath = new ValidatedDataPackageStore(Path.Combine(AppPaths.DataDirectory, "updates"))
+                .ResolvePackagePath("cn-holidays-2026", bundledPath);
             if (!File.Exists(holidayPath))
             {
                 return [];
