@@ -48,10 +48,15 @@ public sealed class CalendarPopupLayoutTests
         Assert.Contains("InitializeAsync(", source);
         Assert.Contains("RecordLayoutChange(", source);
         Assert.Contains("ResetLayoutAsync", source);
+        Assert.Contains("var activeRestore = _layoutRestoreTask", source);
+        Assert.Contains("await activeRestore", source);
         Assert.Contains("OnIsVisibleChanged", source);
         Assert.Contains("EnsureLayoutRestoredAsync", source);
         Assert.Contains("FormsScreen.AllScreens", source);
-        Assert.Contains("GetDpiForWindow", source);
+        Assert.Contains("CalendarPopupMonitorDpi.GetForScreen", source);
+        Assert.Contains("CalendarPopupScreenGeometry.GetWorkAreasInDips", source);
+        Assert.Contains("CalendarPopupScreenGeometry.GetCursorGeometry", source);
+        Assert.DoesNotContain("GetWindowDpiScale", source);
         Assert.Contains("_layoutSession.Dispose()", source);
         Assert.Contains("_hwndSource?.AddHook(OnWindowMessage)", source);
     }

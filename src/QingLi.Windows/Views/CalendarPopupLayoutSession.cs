@@ -16,6 +16,9 @@ public sealed class CalendarPopupLayoutSession : IDisposable
 
     private CancellationTokenSource? _pendingSaveCancellation;
     private Task _pendingSaveTask = Task.CompletedTask;
+    private CancellationTokenSource? _initializationCancellation;
+    private Task<Rect>? _initializationTask;
+    private long _initializationVersion;
     private long _changeVersion;
     private bool _initialized;
     private bool _disposed;
@@ -48,43 +51,108 @@ public sealed class CalendarPopupLayoutSession : IDisposable
 
     public bool IsCustomized { get; private set; }
 
-    public async Task<Rect> InitializeAsync(
+    public Task<Rect> InitializeAsync(
         Rect defaultBounds,
         WpfSize minimumSize,
         double visibleDragHeight,
         CancellationToken cancellationToken = default)
     {
-        ThrowIfDisposed();
-
-        var saved = await _store.LoadAsync(cancellationToken);
-        var restored = defaultBounds;
-        var isCustomized = false;
-        if (saved is { IsCustomized: true } && IsValid(saved, minimumSize))
-        {
-            try
-            {
-                restored = CalendarPopupPlacement.ConstrainSaved(
-                    new Rect(saved.Left, saved.Top, saved.Width, saved.Height),
-                    _workAreasProvider(),
-                    _fallbackWorkAreaProvider(),
-                    minimumSize,
-                    visibleDragHeight);
-                isCustomized = true;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                restored = defaultBounds;
-            }
-        }
-
+        CancellationTokenSource initializationCancellation;
+        TaskCompletionSource<Rect> completion;
+        long version;
         lock (_sync)
         {
             ThrowIfDisposed();
-            IsCustomized = isCustomized;
-            _initialized = true;
+            _initializationCancellation?.Cancel();
+            initializationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken);
+            completion = new TaskCompletionSource<Rect>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            version = ++_initializationVersion;
+            _initializationCancellation = initializationCancellation;
+            _initializationTask = completion.Task;
         }
 
-        return restored;
+        _ = RunInitializationAsync(
+            defaultBounds,
+            minimumSize,
+            visibleDragHeight,
+            version,
+            initializationCancellation,
+            completion);
+        return completion.Task;
+    }
+
+    private async Task RunInitializationAsync(
+        Rect defaultBounds,
+        WpfSize minimumSize,
+        double visibleDragHeight,
+        long version,
+        CancellationTokenSource initializationCancellation,
+        TaskCompletionSource<Rect> completion)
+    {
+        var cancellationToken = initializationCancellation.Token;
+        try
+        {
+            var saved = await _store.LoadAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var restored = defaultBounds;
+            var isCustomized = false;
+            if (saved is { IsCustomized: true } && IsValid(saved, minimumSize))
+            {
+                try
+                {
+                    restored = CalendarPopupPlacement.ConstrainSaved(
+                        new Rect(saved.Left, saved.Top, saved.Width, saved.Height),
+                        _workAreasProvider(),
+                        _fallbackWorkAreaProvider(),
+                        minimumSize,
+                        visibleDragHeight);
+                    isCustomized = true;
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    restored = defaultBounds;
+                }
+            }
+
+            lock (_sync)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (version != _initializationVersion)
+                {
+                    throw new OperationCanceledException(cancellationToken);
+                }
+
+                ThrowIfDisposed();
+                IsCustomized = isCustomized;
+                _initialized = true;
+            }
+
+            completion.TrySetResult(restored);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            completion.TrySetCanceled(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                if (version == _initializationVersion)
+                {
+                    _initializationCancellation = null;
+                    _initializationTask = null;
+                }
+            }
+
+            initializationCancellation.Dispose();
+        }
     }
 
     public void RecordLayoutChange(Rect bounds)
@@ -120,15 +188,42 @@ public sealed class CalendarPopupLayoutSession : IDisposable
 
     public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
+        CancellationTokenSource? initializationCancellation;
+        Task<Rect>? initialization;
         Task pendingSave;
         lock (_sync)
         {
             ThrowIfDisposed();
+            _initializationVersion++;
+            _initializationCancellation?.Cancel();
+            initializationCancellation = _initializationCancellation;
+            initialization = _initializationTask;
             _initialized = false;
             IsCustomized = false;
             _changeVersion++;
             _pendingSaveCancellation?.Cancel();
             pendingSave = _pendingSaveTask;
+        }
+
+        if (initialization is not null)
+        {
+            try
+            {
+                await initialization;
+            }
+            catch
+            {
+                // Reset still owns the final state if restore was canceled or failed.
+            }
+        }
+
+        lock (_sync)
+        {
+            if (ReferenceEquals(_initializationCancellation, initializationCancellation))
+            {
+                _initializationCancellation = null;
+                _initializationTask = null;
+            }
         }
 
         try
@@ -154,6 +249,8 @@ public sealed class CalendarPopupLayoutSession : IDisposable
 
             _disposed = true;
             _initialized = false;
+            _initializationVersion++;
+            _initializationCancellation?.Cancel();
             _changeVersion++;
             _pendingSaveCancellation?.Cancel();
         }

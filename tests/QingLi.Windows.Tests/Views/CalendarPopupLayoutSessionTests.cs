@@ -145,6 +145,34 @@ public sealed class CalendarPopupLayoutSessionTests
         Assert.Empty(store.Saved);
     }
 
+    [Fact]
+    public async Task ResetCancelsAndAwaitsActiveRestoreBeforeClearingAndDefaulting()
+    {
+        var saved = new CalendarPopupLayout(100, 120, 900, 500, true);
+        var store = new ControlledLoadStore(saved);
+        using var session = new CalendarPopupLayoutSession(
+            store,
+            () => [PrimaryWorkArea],
+            () => PrimaryWorkArea);
+
+        var initialization = session.InitializeAsync(DefaultBounds, MinimumSize, 28);
+        await store.LoadStarted;
+
+        var reset = session.ResetAsync();
+        await WaitUntilAsync(() => store.FirstLoadToken.IsCancellationRequested);
+
+        Assert.False(reset.IsCompleted);
+        store.CompleteFirstLoad();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => initialization);
+        await reset;
+        Assert.Equal(1, store.ClearCount);
+        Assert.False(session.IsCustomized);
+
+        var afterReset = await session.InitializeAsync(DefaultBounds, MinimumSize, 28);
+        Assert.Equal(DefaultBounds, afterReset);
+    }
+
     public static TheoryData<CalendarPopupLayout?> UnusableLayouts => new()
     {
         null,
@@ -272,5 +300,44 @@ public sealed class CalendarPopupLayoutSessionTests
 
             Assert.True(Count >= count);
         }
+    }
+
+    private sealed class ControlledLoadStore(CalendarPopupLayout saved)
+        : ICalendarPopupLayoutStore
+    {
+        private readonly TaskCompletionSource<CalendarPopupLayout?> _firstLoad =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _loadStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _loadCount;
+        private bool _cleared;
+
+        public Task LoadStarted => _loadStarted.Task;
+        public CancellationToken FirstLoadToken { get; private set; }
+        public int ClearCount { get; private set; }
+
+        public Task<CalendarPopupLayout?> LoadAsync(CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _loadCount) == 1)
+            {
+                FirstLoadToken = cancellationToken;
+                _loadStarted.TrySetResult();
+                return _firstLoad.Task;
+            }
+
+            return Task.FromResult<CalendarPopupLayout?>(_cleared ? null : saved);
+        }
+
+        public Task SaveAsync(CalendarPopupLayout layout, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task ClearAsync(CancellationToken cancellationToken)
+        {
+            _cleared = true;
+            ClearCount++;
+            return Task.CompletedTask;
+        }
+
+        public void CompleteFirstLoad() => _firstLoad.TrySetResult(saved);
     }
 }

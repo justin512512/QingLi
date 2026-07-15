@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using QingLi.Windows.Interop;
 using QingLi.Windows.ViewModels;
 using WpfButton = System.Windows.Controls.Button;
@@ -219,7 +218,24 @@ public partial class CalendarPopupWindow : Window
 
     public async Task ResetLayoutAsync()
     {
+        var activeRestore = _layoutRestoreTask;
         await _layoutSession.ResetAsync();
+        if (activeRestore is not null)
+        {
+            try
+            {
+                await activeRestore;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            if (ReferenceEquals(_layoutRestoreTask, activeRestore))
+            {
+                _layoutRestoreTask = null;
+            }
+        }
+
         _layoutInitialized = false;
 
         _applyingLayout = true;
@@ -267,6 +283,9 @@ public partial class CalendarPopupWindow : Window
         try
         {
             await restoreTask;
+        }
+        catch (OperationCanceledException)
+        {
         }
         finally
         {
@@ -323,13 +342,13 @@ public partial class CalendarPopupWindow : Window
         try
         {
             var cursor = FormsCursor.Position;
-            var (scaleX, scaleY) = GetWindowDpiScale();
-            var workArea = GetFallbackWorkAreaInDips();
-            var anchor = new WpfPoint(cursor.X / scaleX, cursor.Y / scaleY);
+            var cursorGeometry = CalendarPopupScreenGeometry.GetCursorGeometry(
+                GetPhysicalScreens(),
+                new WpfPoint(cursor.X, cursor.Y));
             return CalendarPopupPlacement.Calculate(
-                workArea,
+                cursorGeometry.WorkArea,
                 new WpfSize(DefaultPopupWidth, DefaultPopupHeight),
-                anchor);
+                cursorGeometry.Anchor);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -344,19 +363,17 @@ public partial class CalendarPopupWindow : Window
 
     private IReadOnlyList<Rect> GetWorkAreasInDips()
     {
-        var (scaleX, scaleY) = GetWindowDpiScale();
-        return FormsScreen.AllScreens
-            .Select(screen => ToDips(screen.WorkingArea, scaleX, scaleY))
-            .ToArray();
+        return CalendarPopupScreenGeometry.GetWorkAreasInDips(GetPhysicalScreens());
     }
 
     private Rect GetFallbackWorkAreaInDips()
     {
         try
         {
-            var screen = FormsScreen.FromPoint(FormsCursor.Position);
-            var (scaleX, scaleY) = GetWindowDpiScale();
-            return ToDips(screen.WorkingArea, scaleX, scaleY);
+            var cursor = FormsCursor.Position;
+            return CalendarPopupScreenGeometry.GetCursorGeometry(
+                GetPhysicalScreens(),
+                new WpfPoint(cursor.X, cursor.Y)).WorkArea;
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -364,27 +381,6 @@ public partial class CalendarPopupWindow : Window
         }
     }
 
-    private (double ScaleX, double ScaleY) GetWindowDpiScale()
-    {
-        var handle = new WindowInteropHelper(this).Handle;
-        var dpi = handle == nint.Zero ? 0u : User32.GetDpiForWindow(handle);
-        if (dpi > 0)
-        {
-            var scale = dpi / 96d;
-            return (scale, scale);
-        }
-
-        var visualDpi = VisualTreeHelper.GetDpi(this);
-        return (visualDpi.DpiScaleX, visualDpi.DpiScaleY);
-    }
-
-    private static Rect ToDips(
-        System.Drawing.Rectangle bounds,
-        double scaleX,
-        double scaleY) =>
-        new(
-            bounds.Left / scaleX,
-            bounds.Top / scaleY,
-            bounds.Width / scaleX,
-            bounds.Height / scaleY);
+    private static IReadOnlyList<CalendarPopupPhysicalScreen> GetPhysicalScreens() =>
+        FormsScreen.AllScreens.Select(CalendarPopupMonitorDpi.GetForScreen).ToArray();
 }
