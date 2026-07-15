@@ -24,6 +24,22 @@ public sealed class DatabaseMigrator(SqliteConnectionFactory connectionFactory)
           is_enabled INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS anniversaries (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          calendar_kind INTEGER NOT NULL,
+          start_year INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          day INTEGER NOT NULL,
+          is_leap_month INTEGER NOT NULL,
+          reminder_days_before INTEGER NOT NULL,
+          reminder_time TEXT NOT NULL,
+          notes TEXT NULL,
+          is_enabled INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_anniversaries_title ON anniversaries(title);
+
         CREATE TABLE IF NOT EXISTS reminder_history (
           birthday_id TEXT NOT NULL,
           scheduled_at TEXT NOT NULL,
