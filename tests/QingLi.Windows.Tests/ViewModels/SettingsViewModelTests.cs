@@ -9,6 +9,62 @@ namespace QingLi.Windows.Tests.ViewModels;
 public sealed class SettingsViewModelTests
 {
     [Fact]
+    public async Task Reset_calendar_layout_command_reports_success()
+    {
+        var resetCount = 0;
+        var vm = new SettingsViewModel(
+            new RecordingSettingsStore(),
+            new RecordingStartupTaskService(),
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { },
+            resetCalendarLayout: () =>
+            {
+                resetCount++;
+                return Task.CompletedTask;
+            });
+
+        await vm.ResetCalendarLayoutCommand.ExecuteAsync();
+
+        Assert.Equal(1, resetCount);
+        Assert.Equal("日历窗口布局已恢复默认", vm.LayoutResetMessage);
+        Assert.Null(vm.ResetCalendarLayoutCommand.LastError);
+    }
+
+    [Fact]
+    public async Task Reset_calendar_layout_command_reports_failure()
+    {
+        var vm = new SettingsViewModel(
+            new RecordingSettingsStore(),
+            new RecordingStartupTaskService(),
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { },
+            resetCalendarLayout: () => Task.FromException(new InvalidOperationException("清除失败")));
+
+        await vm.ResetCalendarLayoutCommand.ExecuteAsync();
+
+        Assert.Contains("清除失败", vm.LayoutResetMessage);
+        Assert.NotNull(vm.ResetCalendarLayoutCommand.LastError);
+    }
+
+    [Fact]
+    public async Task Load_reports_latest_layout_persistence_error()
+    {
+        var vm = new SettingsViewModel(
+            new RecordingSettingsStore(),
+            new RecordingStartupTaskService(),
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { },
+            layoutPersistenceErrorProvider: () => "磁盘写入失败");
+
+        await vm.LoadCommand.ExecuteAsync();
+
+        Assert.Contains("磁盘写入失败", vm.LayoutResetMessage);
+    }
+
+    [Fact]
     public async Task Save_command_persists_all_fields_and_updates_startup_task()
     {
         var store = new RecordingSettingsStore();

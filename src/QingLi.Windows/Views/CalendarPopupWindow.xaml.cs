@@ -51,6 +51,8 @@ public partial class CalendarPopupWindow : Window
 
     public Exception? LastLayoutPlacementError { get; private set; }
 
+    public Exception? LastLayoutPersistenceError => _layoutSession.LastPersistenceError;
+
     private CalendarDashboardViewModel? ViewModel => DataContext as CalendarDashboardViewModel;
 
     protected override void OnSourceInitialized(EventArgs e)

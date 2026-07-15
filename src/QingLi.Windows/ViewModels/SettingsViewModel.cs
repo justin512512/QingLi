@@ -16,6 +16,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private readonly Action<string> _openDirectory;
     private readonly IClockReplacementCoordinator? _clockReplacementCoordinator;
     private readonly Action<AppSettings> _onSettingsSaved;
+    private readonly Func<Task> _resetCalendarLayout;
+    private readonly Func<string?> _layoutPersistenceErrorProvider;
     private AppTheme _theme = AppSettings.Default.Theme;
     private DayOfWeek _firstDayOfWeek = AppSettings.Default.FirstDayOfWeek;
     private bool _startWithWindows = AppSettings.Default.StartWithWindows;
@@ -27,6 +29,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private bool _loadedReplaceSystemClock = AppSettings.Default.ReplaceSystemClock;
     private IReadOnlyList<string> _validationErrors = [];
     private string _saveErrorMessage = string.Empty;
+    private string _layoutResetMessage = string.Empty;
 
     public SettingsViewModel(
         ISettingsStore settingsStore,
@@ -35,7 +38,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         Func<bool> isHighContrast,
         Action<string> openDirectory,
         IClockReplacementCoordinator? clockReplacementCoordinator = null,
-        Action<AppSettings>? onSettingsSaved = null)
+        Action<AppSettings>? onSettingsSaved = null,
+        Func<Task>? resetCalendarLayout = null,
+        Func<string?>? layoutPersistenceErrorProvider = null)
     {
         _settingsStore = settingsStore;
         _startupTaskService = startupTaskService;
@@ -44,11 +49,16 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         _openDirectory = openDirectory;
         _clockReplacementCoordinator = clockReplacementCoordinator;
         _onSettingsSaved = onSettingsSaved ?? (_ => { });
+        _resetCalendarLayout = resetCalendarLayout ?? (() => Task.CompletedTask);
+        _layoutPersistenceErrorProvider = layoutPersistenceErrorProvider ?? (() => null);
 
         LoadCommand = new AsyncCommand(LoadAsync);
         SaveCommand = new AsyncCommand(SaveAsync);
         SaveCommand.ErrorOccurred += (_, exception) => SaveErrorMessage = exception.Message;
         OpenDataDirectoryCommand = new AsyncCommand(OpenDataDirectoryAsync);
+        ResetCalendarLayoutCommand = new AsyncCommand(ResetCalendarLayoutAsync);
+        ResetCalendarLayoutCommand.ErrorOccurred += (_, exception) =>
+            LayoutResetMessage = $"恢复默认布局失败：{exception.Message}";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -58,6 +68,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public AsyncCommand SaveCommand { get; }
 
     public AsyncCommand OpenDataDirectoryCommand { get; }
+
+    public AsyncCommand ResetCalendarLayoutCommand { get; }
 
     public AppTheme Theme
     {
@@ -125,6 +137,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         private set => SetField(ref _saveErrorMessage, value);
     }
 
+    public string LayoutResetMessage
+    {
+        get => _layoutResetMessage;
+        private set => SetField(ref _layoutResetMessage, value);
+    }
+
     public bool CanCloseAfterSave => ValidationErrors.Count == 0 && SaveCommand.LastError is null;
 
     public bool IsHighContrast => _isHighContrast();
@@ -153,6 +171,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         ReplaceSystemClock = settings.ReplaceSystemClock;
         _loadedReplaceSystemClock = settings.ReplaceSystemClock;
         StartWithWindows = await Task.Run(() => _startupTaskService.IsEnabled(_executablePath));
+        var layoutError = _layoutPersistenceErrorProvider();
+        LayoutResetMessage = string.IsNullOrWhiteSpace(layoutError)
+            ? string.Empty
+            : $"上次保存日历窗口布局失败：{layoutError}";
     }
 
     private async Task SaveAsync()
@@ -270,6 +292,13 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     {
         _openDirectory(AppPaths.DataDirectory);
         return Task.CompletedTask;
+    }
+
+    private async Task ResetCalendarLayoutAsync()
+    {
+        LayoutResetMessage = string.Empty;
+        await _resetCalendarLayout();
+        LayoutResetMessage = "日历窗口布局已恢复默认";
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

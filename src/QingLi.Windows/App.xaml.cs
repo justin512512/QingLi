@@ -543,9 +543,25 @@ public partial class App : System.Windows.Application
             () => SystemParameters.HighContrast,
             OpenDirectory,
             _clockReplacementCoordinator,
-            settings => _appSettings = settings);
+            settings => _appSettings = settings,
+            ResetCalendarPopupLayoutAsync,
+            () => _calendarPopupWindow?.LastLayoutPersistenceError?.Message);
 
         return new SettingsWindow(viewModel);
+    }
+
+    private async Task ResetCalendarPopupLayoutAsync()
+    {
+        if (_calendarPopupWindow is not null)
+        {
+            await _calendarPopupWindow.ResetLayoutAsync();
+            return;
+        }
+
+        if (_calendarPopupLayoutStore is not null)
+        {
+            await _calendarPopupLayoutStore.ClearAsync(CancellationToken.None);
+        }
     }
 
     private static void OpenDirectory(string path)
