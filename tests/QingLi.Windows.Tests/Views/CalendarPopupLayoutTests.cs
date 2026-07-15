@@ -27,6 +27,42 @@ public sealed class CalendarPopupLayoutTests
     }
 
     [Fact]
+    public void PopupAllowsNativeResizeWithinMinimumDimensions()
+    {
+        var window = XDocument.Load(GetXamlPath()).Root!;
+
+        Assert.Equal("CanResizeWithGrip", window.Attribute("ResizeMode")?.Value);
+        Assert.Equal("760", window.Attribute("MinWidth")?.Value);
+        Assert.Equal("420", window.Attribute("MinHeight")?.Value);
+    }
+
+    [Fact]
+    public void PopupExposesOnlyATopStripAsTheDragSurface()
+    {
+        var document = XDocument.Load(GetXamlPath());
+        var dragHandle = FindNamed(document, "DragHandle");
+
+        Assert.NotNull(dragHandle);
+        Assert.Equal("28", dragHandle!.Attribute("Height")?.Value);
+        Assert.Equal("Top", dragHandle.Attribute("VerticalAlignment")?.Value);
+        Assert.Equal("SizeAll", dragHandle.Attribute("Cursor")?.Value);
+        Assert.Equal("OnDragHandleMouseLeftButtonDown",
+            dragHandle.Attributes().Single(attribute => attribute.Name.LocalName == "MouseLeftButtonDown").Value);
+    }
+
+    [Fact]
+    public void PopupShowsANonInteractiveBottomRightResizeAffordance()
+    {
+        var document = XDocument.Load(GetXamlPath());
+        var resizeGrip = FindNamed(document, "ResizeGrip");
+
+        Assert.NotNull(resizeGrip);
+        Assert.Equal("Bottom", resizeGrip!.Attribute("VerticalAlignment")?.Value);
+        Assert.Equal("Right", resizeGrip.Attribute("HorizontalAlignment")?.Value);
+        Assert.Equal("False", resizeGrip.Attribute("IsHitTestVisible")?.Value);
+    }
+
+    [Fact]
     public void PopupAvoidsTinyTextThatIsHardToRead()
     {
         var document = XDocument.Load(GetXamlPath());

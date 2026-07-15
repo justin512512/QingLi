@@ -82,6 +82,20 @@ public partial class CalendarPopupWindow : Window
         if (_deactivationGuard.ShouldClose()) Hide();
     }
 
+    private void OnDragHandleMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // The mouse button can be released before WPF enters its native drag loop.
+        }
+
+        e.Handled = true;
+    }
+
     private async void OnCalendarSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ViewModel is not null && CalendarDaysList.SelectedItem is CalendarDayViewModel day)
