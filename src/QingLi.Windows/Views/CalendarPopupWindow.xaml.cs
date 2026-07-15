@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using QingLi.Windows.Interop;
 using QingLi.Windows.ViewModels;
 using WpfButton = System.Windows.Controls.Button;
 using FormsCursor = System.Windows.Forms.Cursor;
@@ -14,7 +16,9 @@ namespace QingLi.Windows.Views;
 
 public partial class CalendarPopupWindow : Window
 {
+    private const int WmNcHitTest = 0x0084;
     private readonly CalendarPopupDeactivationGuard _deactivationGuard = new(TimeSpan.FromMilliseconds(750));
+    private HwndSource? _hwndSource;
 
     public CalendarPopupWindow(CalendarDashboardViewModel viewModel)
     {
@@ -28,6 +32,54 @@ public partial class CalendarPopupWindow : Window
     public event Action<UpcomingEventViewModel>? UpcomingEventRequested;
 
     private CalendarDashboardViewModel? ViewModel => DataContext as CalendarDashboardViewModel;
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        _hwndSource?.AddHook(OnWindowMessage);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _hwndSource?.RemoveHook(OnWindowMessage);
+        _hwndSource = null;
+        base.OnClosed(e);
+    }
+
+    private nint OnWindowMessage(
+        nint windowHandle,
+        int message,
+        nint wParam,
+        nint lParam,
+        ref bool handled)
+    {
+        if (message != WmNcHitTest || !User32.GetWindowRect(windowHandle, out var bounds))
+        {
+            return nint.Zero;
+        }
+
+        var packedPoint = lParam.ToInt64();
+        var screenX = unchecked((short)(packedPoint & 0xffff));
+        var screenY = unchecked((short)((packedPoint >> 16) & 0xffff));
+        var dpi = User32.GetDpiForWindow(windowHandle);
+        var dpiScale = dpi == 0 ? 1d : dpi / 96d;
+        var target = WindowResizeHitTest.Classify(
+            screenX - bounds.Left,
+            screenY - bounds.Top,
+            bounds.Right - bounds.Left,
+            bounds.Bottom - bounds.Top,
+            dpiScale,
+            dpiScale);
+
+        if (target == WindowResizeHitTarget.Client)
+        {
+            return nint.Zero;
+        }
+
+        handled = true;
+        return (nint)(int)target;
+    }
 
     private async void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {

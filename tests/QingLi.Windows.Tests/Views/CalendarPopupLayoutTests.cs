@@ -41,6 +41,7 @@ public sealed class CalendarPopupLayoutTests
     {
         var document = XDocument.Load(GetXamlPath());
         var dragHandle = FindNamed(document, "DragHandle");
+        var dragHandleAffordance = FindNamed(document, "DragHandleAffordance");
 
         Assert.NotNull(dragHandle);
         Assert.Equal("28", dragHandle!.Attribute("Height")?.Value);
@@ -48,6 +49,25 @@ public sealed class CalendarPopupLayoutTests
         Assert.Equal("SizeAll", dragHandle.Attribute("Cursor")?.Value);
         Assert.Equal("OnDragHandleMouseLeftButtonDown",
             dragHandle.Attributes().Single(attribute => attribute.Name.LocalName == "MouseLeftButtonDown").Value);
+        Assert.False(string.IsNullOrWhiteSpace(dragHandle.Attribute("ToolTip")?.Value));
+        Assert.False(string.IsNullOrWhiteSpace(
+            dragHandle.Attribute("AutomationProperties.HelpText")?.Value));
+        Assert.NotNull(dragHandleAffordance);
+        Assert.Equal("False", dragHandleAffordance!.Attribute("IsHitTestVisible")?.Value);
+    }
+
+    [Fact]
+    public void PopupUsesResponsiveTwoThreeTwoContentColumns()
+    {
+        var document = XDocument.Load(GetXamlPath());
+        var contentGrid = FindNamed(document, "HistoryColumn")!.Parent!;
+        var columnDefinitions = contentGrid.Elements()
+            .Single(element => element.Name.LocalName == "Grid.ColumnDefinitions")
+            .Elements()
+            .Select(element => element.Attribute("Width")?.Value)
+            .ToArray();
+
+        Assert.Equal(new[] { "2*", "12", "3*", "12", "2*" }, columnDefinitions);
     }
 
     [Fact]
