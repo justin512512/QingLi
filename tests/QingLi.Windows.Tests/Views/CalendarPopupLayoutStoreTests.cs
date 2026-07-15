@@ -124,20 +124,66 @@ public sealed class CalendarPopupLayoutStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task CancelledSavePreservesExistingLayoutAndRemovesTempFile()
+    public async Task SaveWaitsForConcurrentLoadBeforeReplacingLayout()
     {
         var store = new JsonCalendarPopupLayoutStore(_path);
         var original = new CalendarPopupLayout(10, 20, 800, 500, false);
         var replacement = new CalendarPopupLayout(30, 40, 900, 600, true);
-        await store.SaveAsync(original, CancellationToken.None);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await WriteLargeLayoutFileAsync(original);
 
+        var load = store.LoadAsync(CancellationToken.None);
+        Assert.False(load.IsCompleted);
+        var save = store.SaveAsync(replacement, CancellationToken.None);
+        await Task.WhenAll(load, save);
+
+        Assert.Equal(original, await load);
+        Assert.Equal(replacement, await store.LoadAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ClearWaitsForConcurrentLoadBeforeDeletingLayout()
+    {
+        var store = new JsonCalendarPopupLayoutStore(_path);
+        var original = new CalendarPopupLayout(10, 20, 800, 500, false);
+        await WriteLargeLayoutFileAsync(original);
+
+        var load = store.LoadAsync(CancellationToken.None);
+        Assert.False(load.IsCompleted);
+        var clear = store.ClearAsync(CancellationToken.None);
+        await Task.WhenAll(load, clear);
+
+        Assert.Equal(original, await load);
+        Assert.Null(await store.LoadAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SaveCancelledAfterTempCreationPreservesLayoutAndRemovesTempFile()
+    {
+        var original = new CalendarPopupLayout(10, 20, 800, 500, false);
+        var replacement = new CalendarPopupLayout(30, 40, 900, 600, true);
+        await new JsonCalendarPopupLayoutStore(_path).SaveAsync(original, CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        var tempPath = _path + ".tmp";
+        var tempObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new JsonCalendarPopupLayoutStore(
+            _path,
+            async (stream, _, token) =>
+            {
+                await stream.WriteAsync(new byte[] { (byte)'{' }, token);
+                await stream.FlushAsync(token);
+                tempObserved.TrySetResult(true);
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            });
+
+        var save = store.SaveAsync(replacement, cancellation.Token);
+        Assert.True(await tempObserved.Task);
+        Assert.True(File.Exists(tempPath));
+        cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            store.SaveAsync(replacement, cancellation.Token));
+            save);
 
         Assert.Equal(original, await store.LoadAsync(CancellationToken.None));
-        Assert.False(File.Exists(_path + ".tmp"));
+        Assert.False(File.Exists(tempPath));
     }
 
     [Fact]
@@ -181,6 +227,25 @@ public sealed class CalendarPopupLayoutStoreTests : IDisposable
         if (Directory.Exists(_directory))
         {
             Directory.Delete(_directory, recursive: true);
+        }
+    }
+
+    private async Task WriteLargeLayoutFileAsync(CalendarPopupLayout layout)
+    {
+        await using var stream = new FileStream(
+            _path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            FileOptions.Asynchronous);
+        await System.Text.Json.JsonSerializer.SerializeAsync(stream, layout);
+
+        var padding = new byte[1024 * 1024];
+        Array.Fill(padding, (byte)' ');
+        for (var index = 0; index < 32; index++)
+        {
+            await stream.WriteAsync(padding);
         }
     }
 }
