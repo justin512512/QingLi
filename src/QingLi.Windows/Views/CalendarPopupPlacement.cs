@@ -105,7 +105,13 @@ public static class CalendarPopupPlacement
                 0d,
                 Math.Min(saved.Bottom, workArea.Bottom) - Math.Max(saved.Top, workArea.Top));
             var intersectionArea = intersectionWidth * intersectionHeight;
-            if (intersectionArea > largestIntersectionArea)
+            if (intersectionArea > largestIntersectionArea
+                || (intersectionArea > 0d
+                    && intersectionArea == largestIntersectionArea
+                    && IsPreferredForEqualIntersection(
+                        workArea,
+                        selectedWorkArea,
+                        fallbackWorkArea)))
             {
                 largestIntersectionArea = intersectionArea;
                 selectedWorkArea = workArea;
@@ -113,16 +119,21 @@ public static class CalendarPopupPlacement
         }
 
         var width = Math.Min(
-            selectedWorkArea.Width,
-            Math.Max(saved.Width, minimumSize.Width));
+            Math.Max(saved.Width, minimumSize.Width),
+            Math.Max(selectedWorkArea.Width, minimumSize.Width));
         var height = Math.Min(
-            selectedWorkArea.Height,
-            Math.Max(saved.Height, minimumSize.Height));
+            Math.Max(saved.Height, minimumSize.Height),
+            Math.Max(selectedWorkArea.Height, minimumSize.Height));
 
-        var left = Math.Clamp(
-            saved.Left,
-            selectedWorkArea.Left,
-            selectedWorkArea.Right - width);
+        var left = width <= selectedWorkArea.Width
+            ? Math.Clamp(
+                saved.Left,
+                selectedWorkArea.Left,
+                selectedWorkArea.Right - width)
+            : Math.Clamp(
+                saved.Left,
+                selectedWorkArea.Right - width,
+                selectedWorkArea.Left);
         var top = height <= selectedWorkArea.Height
             ? Math.Clamp(
                 saved.Top,
@@ -130,13 +141,44 @@ public static class CalendarPopupPlacement
                 selectedWorkArea.Bottom - height)
             : Math.Clamp(
                 saved.Top,
-                selectedWorkArea.Top - height + Math.Min(visibleDragHeight, height),
-                selectedWorkArea.Bottom - Math.Min(visibleDragHeight, height));
+                selectedWorkArea.Top,
+                selectedWorkArea.Bottom
+                    - Math.Min(visibleDragHeight, selectedWorkArea.Height));
 
         return new Rect(left, top, width, height);
     }
 
     private static bool IsPositiveFinite(double value) => double.IsFinite(value) && value > 0;
+
+    private static bool IsPreferredForEqualIntersection(
+        Rect candidate,
+        Rect current,
+        Rect fallback)
+    {
+        var candidateIsFallback = candidate == fallback;
+        var currentIsFallback = current == fallback;
+        if (candidateIsFallback != currentIsFallback)
+        {
+            return candidateIsFallback;
+        }
+
+        if (candidate.Left != current.Left)
+        {
+            return candidate.Left < current.Left;
+        }
+
+        if (candidate.Top != current.Top)
+        {
+            return candidate.Top < current.Top;
+        }
+
+        if (candidate.Width != current.Width)
+        {
+            return candidate.Width < current.Width;
+        }
+
+        return candidate.Height < current.Height;
+    }
 
     private static bool IsValidRect(Rect rect) =>
         !rect.IsEmpty

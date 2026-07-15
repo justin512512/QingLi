@@ -68,6 +68,33 @@ public sealed class CalendarPopupPlacementTests
     }
 
     [Fact]
+    public void EqualIntersectionsPreferFallbackWorkArea()
+    {
+        var primary = new Rect(0, 0, 1000, 1000);
+        var secondary = new Rect(1000, 0, 1000, 1000);
+
+        var actual = CalendarPopupPlacement.ConstrainSaved(
+            new Rect(750, 100, 500, 500), [primary, secondary], secondary,
+            new Size(100, 100), 32);
+
+        Assert.Equal(new Rect(1000, 100, 500, 500), actual);
+    }
+
+    [Fact]
+    public void EqualIntersectionsWithoutFallbackUseStableCoordinateOrder()
+    {
+        var primary = new Rect(0, 0, 1000, 1000);
+        var secondary = new Rect(1000, 0, 1000, 1000);
+        var fallback = new Rect(3000, 0, 1000, 1000);
+
+        var actual = CalendarPopupPlacement.ConstrainSaved(
+            new Rect(750, 100, 500, 500), [secondary, primary], fallback,
+            new Size(100, 100), 32);
+
+        Assert.Equal(new Rect(500, 100, 500, 500), actual);
+    }
+
+    [Fact]
     public void SavedLayoutOnRemovedMonitorMovesToFallbackWorkArea()
     {
         var saved = new Rect(4500, 100, 1000, 600);
@@ -115,19 +142,16 @@ public sealed class CalendarPopupPlacementTests
     }
 
     [Fact]
-    public void WorkAreaSmallerThanMinimumKeepsLayoutFiniteAndInsideWorkArea()
+    public void WorkAreaSmallerThanMinimumRetainsMinimumAndExposesDragStrip()
     {
         var workArea = new Rect(-100, -50, 600, 300);
 
         var actual = CalendarPopupPlacement.ConstrainSaved(
-            new Rect(-1000, -1000, 200, 100), [workArea], workArea,
+            new Rect(1000, 1000, 200, 100), [workArea], workArea,
             new Size(760, 420), 32);
 
-        Assert.Equal(workArea, actual);
-        Assert.True(double.IsFinite(actual.X));
-        Assert.True(double.IsFinite(actual.Y));
-        Assert.True(actual.Width >= 0);
-        Assert.True(actual.Height >= 0);
+        Assert.Equal(new Rect(-100, 218, 760, 420), actual);
+        Assert.Equal(32, workArea.Bottom - actual.Top);
     }
 
     [Fact]
