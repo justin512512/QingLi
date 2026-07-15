@@ -11,7 +11,7 @@ public sealed class ClockWindowControllerTests
         1.5);
 
     [Fact]
-    public async Task Show_positions_window_before_making_it_visible()
+    public async Task Show_reapplies_position_after_Wpf_makes_window_visible()
     {
         var calls = new List<string>();
         var window = new FakeClockWindow(calls);
@@ -24,7 +24,7 @@ public sealed class ClockWindowControllerTests
         var shown = await controller.ShowAsync(default);
 
         Assert.True(shown);
-        Assert.Equal(["handle", "position", "show"], calls);
+        Assert.Equal(["handle", "position", "show", "position"], calls);
         Assert.Equal(new Rect(1764, 1040, 156, 40), positioner.Bounds);
     }
 

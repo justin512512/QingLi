@@ -180,7 +180,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
             AppSettings savedSettings;
             if (_clockReplacementCoordinator is not null &&
-                settings!.ReplaceSystemClock != _loadedReplaceSystemClock)
+                (settings!.ReplaceSystemClock ||
+                 settings.ReplaceSystemClock != _loadedReplaceSystemClock))
             {
                 var result = await _clockReplacementCoordinator.SetEnabledAsync(
                     settings.ReplaceSystemClock, settings, CancellationToken.None);

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
-        Width="900" Height="440" AllowsTransparency="True" Background="Transparent"
+        Width="1040" Height="520" AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="Manual" SnapsToDevicePixels="True"
         PreviewKeyDown="OnPreviewKeyDown" Loaded="OnLoaded" Deactivated="OnDeactivated">
     <Window.Resources>
@@ -12,7 +12,7 @@
             <Setter Property="BorderBrush" Value="#DDE4EF"/><Setter Property="BorderThickness" Value="1"/>
         </Style>
         <Style x:Key="SectionTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="16"/><Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="#FF5968"/>
         </Style>
     </Window.Resources>
@@ -21,9 +21,9 @@
         <Border.Effect><DropShadowEffect BlurRadius="26" Color="#40000000" ShadowDepth="0" Opacity="0.24"/></Border.Effect>
         <Grid Margin="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="260"/><ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="280"/><ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/><ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="280"/>
             </Grid.ColumnDefinitions>
 
             <Border x:Name="HistoryColumn" Grid.Column="0" Padding="14" Background="White" CornerRadius="14" BorderBrush="#160F172A" BorderThickness="1">
@@ -31,7 +31,7 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <DockPanel Margin="0,0,0,10">
                         <TextBlock Style="{StaticResource SectionTitle}" Text="历史上的今天"/>
-                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Foreground="#8A94A6" Text="{Binding SelectedDate, StringFormat={}{0:M月d日}}"/>
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="13" Foreground="#8A94A6" Text="{Binding SelectedDate, StringFormat={}{0:M月d日}}"/>
                     </DockPanel>
                     <ScrollViewer x:Name="HistoryScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding HistoryToday}">
@@ -43,7 +43,7 @@
                                             <Border Margin="0,1,8,0" Padding="6,3" VerticalAlignment="Top" Background="#EAF2FF" CornerRadius="7">
                                                 <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="#3977E8" Text="{Binding Year, StringFormat={}{0}年}"/>
                                             </Border>
-                                            <TextBlock Grid.Column="1" FontSize="12" Foreground="#313A49" TextWrapping="Wrap" Text="{Binding Summary}"/>
+                                            <TextBlock Grid.Column="1" FontSize="14" Foreground="#313A49" TextWrapping="Wrap" Text="{Binding Summary}"/>
                                         </Grid>
                                     </Button>
                                 </DataTemplate>
@@ -55,27 +55,27 @@
 
             <Border x:Name="CalendarColumn" Grid.Column="2" Padding="12" Background="White" CornerRadius="14" BorderBrush="#160F172A" BorderThickness="1">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="92"/><RowDefinition Height="34"/><RowDefinition Height="26"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="108"/><RowDefinition Height="40"/><RowDefinition Height="30"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="86"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <StackPanel HorizontalAlignment="Center">
-                            <TextBlock HorizontalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#FF5968" Text="{Binding Almanac.WeekdayText}"/>
-                            <TextBlock Margin="0,-3,0,0" HorizontalAlignment="Center" FontSize="46" FontWeight="Bold" Foreground="#111827" Text="{Binding Almanac.DayNumber}"/>
+                            <TextBlock HorizontalAlignment="Center" FontSize="15" FontWeight="SemiBold" Foreground="#FF5968" Text="{Binding Almanac.WeekdayText}"/>
+                            <TextBlock Margin="0,-3,0,0" HorizontalAlignment="Center" FontSize="52" FontWeight="Bold" Foreground="#111827" Text="{Binding Almanac.DayNumber}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                            <TextBlock FontSize="14" Foreground="#697386" Text="{Binding Almanac.LunarMonthDay, StringFormat=农历{0}}"/>
-                            <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="#8A94A6" Text="{Binding Almanac.GanZhiText}"/>
-                            <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="#8A94A6" Text="{Binding Almanac.ZodiacText}"/>
+                            <TextBlock FontSize="15" Foreground="#697386" Text="{Binding Almanac.LunarMonthDay, StringFormat=农历{0}}"/>
+                            <TextBlock Margin="0,3,0,0" FontSize="13" Foreground="#8A94A6" Text="{Binding Almanac.GanZhiText}"/>
+                            <TextBlock Margin="0,3,0,0" FontSize="13" Foreground="#8A94A6" Text="{Binding Almanac.ZodiacText}"/>
                             <Grid Margin="0,6,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal"><Border Padding="5,2" Background="#EBF3FF" CornerRadius="8"><TextBlock Foreground="#3977E8" FontWeight="Bold" Text="宜"/></Border><ItemsControl Margin="5,0,0,0" ItemsSource="{Binding Almanac.Suitable}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,0,4,0" FontSize="10" Foreground="#526172" Text="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal"><Border Padding="5,2" Background="#FFF0F1" CornerRadius="8"><TextBlock Foreground="#E85462" FontWeight="Bold" Text="忌"/></Border><ItemsControl Margin="5,0,0,0" ItemsSource="{Binding Almanac.Avoid}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,0,4,0" FontSize="10" Foreground="#526172" Text="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+                                <StackPanel Orientation="Horizontal"><Border Padding="5,2" Background="#EBF3FF" CornerRadius="8"><TextBlock Foreground="#3977E8" FontWeight="Bold" Text="宜"/></Border><ItemsControl Margin="5,0,0,0" ItemsSource="{Binding Almanac.Suitable}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,0,4,0" FontSize="12" Foreground="#526172" Text="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal"><Border Padding="5,2" Background="#FFF0F1" CornerRadius="8"><TextBlock Foreground="#E85462" FontWeight="Bold" Text="忌"/></Border><ItemsControl Margin="5,0,0,0" ItemsSource="{Binding Almanac.Avoid}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,0,4,0" FontSize="12" Foreground="#526172" Text="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
                             </Grid>
                         </StackPanel>
                     </Grid>
 
                     <DockPanel Grid.Row="1">
-                        <TextBlock VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="#202736" Text="{Binding Calendar.DisplayMonth, StringFormat={}{0:yyyy年 M月}}"/>
+                        <TextBlock VerticalAlignment="Center" FontSize="20" FontWeight="SemiBold" Foreground="#202736" Text="{Binding Calendar.DisplayMonth, StringFormat={}{0:yyyy年 M月}}"/>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button Style="{StaticResource NavButton}" Content="‹" Command="{Binding PreviousMonthCommand}"/>
                             <Button Width="48" Height="28" Margin="5,0,1,0" Background="White" BorderBrush="#DDE4EF" Content="今天" Command="{Binding TodayCommand}"/>
@@ -85,13 +85,13 @@
 
                     <ItemsControl Grid.Row="2" ItemsSource="{Binding Calendar.WeekdayHeaders}">
                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="7"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate><DataTemplate><TextBlock x:Name="Header" HorizontalAlignment="Center" FontSize="11" Foreground="#768094" Text="{Binding Text}"/><DataTemplate.Triggers><DataTrigger Binding="{Binding IsWeekend}" Value="True"><Setter TargetName="Header" Property="Foreground" Value="#FF5968"/></DataTrigger></DataTemplate.Triggers></DataTemplate></ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemTemplate><DataTemplate><TextBlock x:Name="Header" HorizontalAlignment="Center" FontSize="13" Foreground="#768094" Text="{Binding Text}"/><DataTemplate.Triggers><DataTrigger Binding="{Binding IsWeekend}" Value="True"><Setter TargetName="Header" Property="Foreground" Value="#FF5968"/></DataTrigger></DataTemplate.Triggers></DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
 
                     <ListBox x:Name="CalendarDaysList" Grid.Row="3" ItemsSource="{Binding Calendar.Days}" SelectedItem="{Binding Calendar.SelectedDay, Mode=TwoWay}" SelectionChanged="OnCalendarSelectionChanged" BorderThickness="0" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                         <ListBox.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="7" Rows="6"/></ItemsPanelTemplate></ListBox.ItemsPanel>
                         <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Margin" Value="2"/><Setter Property="Padding" Value="0"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Stretch"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Cell" Padding="3,2" Background="Transparent" CornerRadius="10"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Cell" Property="Background" Value="#E5EEFF"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Cell" Property="Background" Value="#F0F5FF"/></Trigger><DataTrigger Binding="{Binding IsCurrentMonth}" Value="False"><Setter TargetName="Cell" Property="Opacity" Value="0.34"/></DataTrigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate><DataTemplate><Grid><TextBlock x:Name="Day" HorizontalAlignment="Center" VerticalAlignment="Top" FontSize="15" Foreground="#222A38" Text="{Binding Date.Day}"/><TextBlock x:Name="Sub" Margin="0,18,0,0" HorizontalAlignment="Center" FontSize="9" Foreground="#778196" Text="{Binding SecondaryText}"/><Border x:Name="Rest" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="3,0" Background="#FF5968" CornerRadius="5" Visibility="Collapsed"><TextBlock FontSize="8" Foreground="White" Text="休"/></Border><Border x:Name="Work" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="3,0" Background="#6B7A90" CornerRadius="5" Visibility="Collapsed"><TextBlock FontSize="8" Foreground="White" Text="班"/></Border></Grid><DataTemplate.Triggers><DataTrigger Binding="{Binding IsWeekend}" Value="True"><Setter TargetName="Day" Property="Foreground" Value="#FF5968"/></DataTrigger><DataTrigger Binding="{Binding HasSolarTerm}" Value="True"><Setter TargetName="Sub" Property="Foreground" Value="#3977E8"/></DataTrigger><DataTrigger Binding="{Binding IsRestDay}" Value="True"><Setter TargetName="Rest" Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding IsMakeupWorkday}" Value="True"><Setter TargetName="Work" Property="Visibility" Value="Visible"/></DataTrigger></DataTemplate.Triggers></DataTemplate></ListBox.ItemTemplate>
+                        <ListBox.ItemTemplate><DataTemplate><Grid><TextBlock x:Name="Day" HorizontalAlignment="Center" VerticalAlignment="Top" FontSize="17" Foreground="#222A38" Text="{Binding Date.Day}"/><TextBlock x:Name="Sub" Margin="0,21,0,0" HorizontalAlignment="Center" FontSize="11" Foreground="#778196" Text="{Binding SecondaryText}"/><Border x:Name="Rest" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="3,0" Background="#FF5968" CornerRadius="5" Visibility="Collapsed"><TextBlock FontSize="11" Foreground="White" Text="休"/></Border><Border x:Name="Work" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="3,0" Background="#6B7A90" CornerRadius="5" Visibility="Collapsed"><TextBlock FontSize="11" Foreground="White" Text="班"/></Border></Grid><DataTemplate.Triggers><DataTrigger Binding="{Binding IsWeekend}" Value="True"><Setter TargetName="Day" Property="Foreground" Value="#FF5968"/></DataTrigger><DataTrigger Binding="{Binding HasSolarTerm}" Value="True"><Setter TargetName="Sub" Property="Foreground" Value="#3977E8"/></DataTrigger><DataTrigger Binding="{Binding IsRestDay}" Value="True"><Setter TargetName="Rest" Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding IsMakeupWorkday}" Value="True"><Setter TargetName="Work" Property="Visibility" Value="Visible"/></DataTrigger></DataTemplate.Triggers></DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
                 </Grid>
             </Border>
@@ -102,7 +102,7 @@
                     <TextBlock Style="{StaticResource SectionTitle}" Text="最近节日节气"/>
                     <ScrollViewer x:Name="UpcomingScrollViewer" Grid.Row="1" Margin="0,10,0,8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding UpcomingEvents}">
-                            <ItemsControl.ItemTemplate><DataTemplate><Button Margin="0,0,4,7" Padding="7" Background="#FAFBFD" BorderBrush="#E7EBF2" HorizontalContentAlignment="Stretch" Click="OnUpcomingClick" Tag="{Binding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock FontSize="12" FontWeight="SemiBold" Foreground="#344154" Text="{Binding Title}"/><TextBlock Margin="0,2,0,0" FontSize="10" Foreground="#8A94A6" Text="{Binding DateText}"/></StackPanel><Border Grid.Column="1" Padding="8,3" VerticalAlignment="Center" Background="#EAF2FF" CornerRadius="8"><TextBlock FontSize="10" Foreground="#3977E8" Text="{Binding CountdownText}"/></Border></Grid></Button></DataTemplate></ItemsControl.ItemTemplate>
+                            <ItemsControl.ItemTemplate><DataTemplate><Button Margin="0,0,4,7" Padding="7" Background="#FAFBFD" BorderBrush="#E7EBF2" HorizontalContentAlignment="Stretch" Click="OnUpcomingClick" Tag="{Binding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock FontSize="14" FontWeight="SemiBold" Foreground="#344154" Text="{Binding Title}"/><TextBlock Margin="0,2,0,0" FontSize="12" Foreground="#8A94A6" Text="{Binding DateText}"/></StackPanel><Border Grid.Column="1" Padding="8,3" VerticalAlignment="Center" Background="#EAF2FF" CornerRadius="8"><TextBlock FontSize="12" Foreground="#3977E8" Text="{Binding CountdownText}"/></Border></Grid></Button></DataTemplate></ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
                     <Grid Grid.Row="2">

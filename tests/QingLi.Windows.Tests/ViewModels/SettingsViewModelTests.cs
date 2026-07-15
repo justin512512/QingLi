@@ -167,6 +167,26 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public async Task Saving_enabled_clock_reapplies_replacement_even_when_checkbox_was_already_checked()
+    {
+        var coordinator = new RecordingClockReplacementCoordinator();
+        var vm = new SettingsViewModel(
+            new RecordingSettingsStore(AppSettings.Default with { ReplaceSystemClock = true }),
+            new RecordingStartupTaskService(),
+            @"C:\Apps\QingLi.exe",
+            () => false,
+            _ => { },
+            coordinator);
+
+        await vm.LoadCommand.ExecuteAsync();
+        await vm.SaveCommand.ExecuteAsync();
+
+        var request = Assert.Single(coordinator.Requests);
+        Assert.True(request.Enabled);
+        Assert.Null(vm.SaveCommand.LastError);
+    }
+
+    [Fact]
     public async Task Clock_replacement_failure_is_visible_and_keeps_settings_window_open()
     {
         var coordinator = new RecordingClockReplacementCoordinator

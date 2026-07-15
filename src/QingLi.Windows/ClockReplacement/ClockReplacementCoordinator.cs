@@ -172,9 +172,18 @@ public sealed class ClockReplacementCoordinator : IClockReplacementCoordinator
         var snapshotPersisted = false;
         try
         {
-            snapshot = await _policy.CaptureAsync(cancellationToken);
-            await _stateStore.SaveAsync(snapshot, cancellationToken);
-            snapshotPersisted = true;
+            if (settings.ReplaceSystemClock)
+            {
+                snapshot = await _stateStore.LoadAsync(cancellationToken);
+                snapshotPersisted = snapshot is not null && snapshot != RestoredStateMarker;
+            }
+
+            if (!snapshotPersisted)
+            {
+                snapshot = await _policy.CaptureAsync(cancellationToken);
+                await _stateStore.SaveAsync(snapshot, cancellationToken);
+                snapshotPersisted = true;
+            }
 
             if (!await _windowController.ShowAsync(cancellationToken))
             {

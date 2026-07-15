@@ -5,6 +5,16 @@ namespace QingLi.Windows.Tests.Tray;
 public sealed class TrayIconServiceTests
 {
     [Fact]
+    public void Default_tray_icon_is_branded_instead_of_the_generic_Windows_application_icon()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(), "src", "QingLi.Windows", "Tray", "TrayIconService.cs"));
+
+        Assert.Contains("QingLiTrayIcon.Create", source);
+        Assert.DoesNotContain("SystemIcons.Application", source);
+    }
+
+    [Fact]
     public void Tray_menu_texts_match_brief()
     {
         var service = new TrayIconService(
@@ -87,4 +97,7 @@ public sealed class TrayIconServiceTests
         service.ContextMenuStrip.Items[4].PerformClick();
         Assert.Equal(1, restores);
     }
+
+    private static string GetRepositoryRoot() => Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 }

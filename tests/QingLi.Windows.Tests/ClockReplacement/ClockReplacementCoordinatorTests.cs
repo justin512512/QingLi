@@ -24,6 +24,21 @@ public sealed class ClockReplacementCoordinatorTests
     }
 
     [Fact]
+    public async Task Reapply_enabled_clock_preserves_original_recovery_snapshot()
+    {
+        var fixture = new Fixture(snapshot: Snapshot);
+        var enabled = AppSettings.Default with { ReplaceSystemClock = true };
+
+        var result = await fixture.Coordinator.SetEnabledAsync(true, enabled, default);
+
+        Assert.True(result.Succeeded);
+        Assert.True(fixture.StateStore.HasSnapshot);
+        Assert.Equal(
+            ["snapshot-load", "window-show", "policy-hide", "settings-True"],
+            fixture.Calls);
+    }
+
+    [Fact]
     public async Task Enable_failure_restores_before_hiding_window_and_deletes_snapshot_last()
     {
         var fixture = new Fixture { HideException = new InvalidOperationException("hide failed") };

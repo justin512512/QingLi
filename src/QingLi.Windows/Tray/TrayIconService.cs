@@ -6,6 +6,7 @@ namespace QingLi.Windows.Tray;
 public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly Icon? _ownedIcon;
     private readonly Action _onToggleCalendar;
     private readonly Action _onAddBirthday;
     private readonly Action _onOpenSettings;
@@ -35,9 +36,10 @@ public sealed class TrayIconService : IDisposable
             .Select(item => item.Text ?? string.Empty)
             .ToArray();
 
+        _ownedIcon = icon is null ? QingLiTrayIcon.Create() : null;
         _notifyIcon = new NotifyIcon
         {
-            Icon = icon ?? SystemIcons.Application,
+            Icon = icon ?? _ownedIcon,
             Text = "轻历",
             Visible = true,
             ContextMenuStrip = ContextMenuStrip
@@ -69,6 +71,7 @@ public sealed class TrayIconService : IDisposable
         _notifyIcon.MouseClick -= HandleMouseClick;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _ownedIcon?.Dispose();
         ContextMenuStrip.Dispose();
     }
 

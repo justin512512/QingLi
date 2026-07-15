@@ -10,8 +10,8 @@ public sealed class CalendarPopupLayoutTests
         var document = XDocument.Load(GetXamlPath());
         var window = document.Root!;
 
-        Assert.Equal("900", window.Attribute("Width")?.Value);
-        Assert.Equal("440", window.Attribute("Height")?.Value);
+        Assert.Equal("1040", window.Attribute("Width")?.Value);
+        Assert.Equal("520", window.Attribute("Height")?.Value);
         Assert.Equal("False", window.Attribute("ShowInTaskbar")?.Value);
         Assert.Equal("None", window.Attribute("WindowStyle")?.Value);
 
@@ -24,6 +24,20 @@ public sealed class CalendarPopupLayoutTests
         Assert.NotNull(FindNamed(document, "AddBirthdayButton"));
         Assert.NotNull(FindNamed(document, "AddAnniversaryButton"));
         Assert.NotNull(FindNamed(document, "SettingsButton"));
+    }
+
+    [Fact]
+    public void PopupAvoidsTinyTextThatIsHardToRead()
+    {
+        var document = XDocument.Load(GetXamlPath());
+        var fontSizes = document.Descendants()
+            .SelectMany(element => element.Attributes())
+            .Where(attribute => attribute.Name.LocalName == "FontSize")
+            .Select(attribute => double.Parse(attribute.Value, System.Globalization.CultureInfo.InvariantCulture))
+            .ToArray();
+
+        Assert.NotEmpty(fontSizes);
+        Assert.All(fontSizes, size => Assert.True(size >= 11, $"Font size {size} is too small."));
     }
 
     [Fact]

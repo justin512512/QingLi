@@ -120,6 +120,12 @@ public sealed class ClockWindowController : IClockWindowController, IDisposable
         }
 
         _window.ShowClock();
+        if (!_positioner.TryPosition(handle, bounds))
+        {
+            Hide();
+            return false;
+        }
+
         return true;
     }
 
