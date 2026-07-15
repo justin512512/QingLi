@@ -26,6 +26,8 @@ public sealed class CalendarDayViewModel
         SolarTerm = day.SolarTerm;
         HasSolarTerm = !string.IsNullOrWhiteSpace(SolarTerm);
         HolidayName = day.Holiday?.Name;
+        IsRestDay = day.Holiday is { IsWorkday: false };
+        IsMakeupWorkday = day.Holiday is { IsWorkday: true };
         IsCurrentMonth = day.IsCurrentMonth;
         IsToday = Date == today;
         IsWeekend = Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
@@ -48,6 +50,10 @@ public sealed class CalendarDayViewModel
     public bool HasSolarTerm { get; }
 
     public string? HolidayName { get; }
+
+    public bool IsRestDay { get; }
+
+    public bool IsMakeupWorkday { get; }
 
     public bool IsCurrentMonth { get; }
 

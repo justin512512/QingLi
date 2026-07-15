@@ -1,4 +1,5 @@
 using QingLi.Core.Calendars;
+using QingLi.Core.Holidays;
 using QingLi.Windows.ViewModels;
 
 namespace QingLi.Windows.Tests.ViewModels;
@@ -44,5 +45,24 @@ public sealed class CalendarDayViewModelTests
             date);
 
         Assert.True(vm.IsToday);
+    }
+
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    public void ExposesRestAndMakeupWorkdayBadges(
+        bool isWorkday,
+        bool expectedRest,
+        bool expectedMakeupWorkday)
+    {
+        var vm = new CalendarDayViewModel(new CalendarDay(
+            new DateOnly(2026, 10, 1),
+            new LunarDate(2026, 8, 21, false),
+            null,
+            new HolidayDefinition(new DateOnly(2026, 10, 1), "国庆节", isWorkday),
+            true));
+
+        Assert.Equal(expectedRest, vm.IsRestDay);
+        Assert.Equal(expectedMakeupWorkday, vm.IsMakeupWorkday);
     }
 }
