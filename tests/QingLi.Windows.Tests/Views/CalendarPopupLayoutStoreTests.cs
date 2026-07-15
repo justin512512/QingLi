@@ -27,6 +27,33 @@ public sealed class CalendarPopupLayoutStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoadPreservesMonitorIdentityAndLocalCoordinates()
+    {
+        var store = new JsonCalendarPopupLayoutStore(_path);
+        var expected = new CalendarPopupLayout(
+            120.5, 80.25, 1040, 520, true, @"\\.\DISPLAY2");
+
+        await store.SaveAsync(expected, CancellationToken.None);
+
+        Assert.Equal(expected, await store.LoadAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task LegacyJsonWithoutMonitorIdentityStillLoadsForSafeFallback()
+    {
+        await File.WriteAllTextAsync(
+            _path,
+            "{\"Left\":120,\"Top\":80,\"Width\":1040,\"Height\":520,\"IsCustomized\":true}");
+        var store = new JsonCalendarPopupLayoutStore(_path);
+
+        var actual = await store.LoadAsync(CancellationToken.None);
+
+        Assert.NotNull(actual);
+        Assert.Null(actual!.MonitorDeviceName);
+        Assert.Equal(120, actual.Left);
+    }
+
+    [Fact]
     public async Task LoadReturnsNullWhenFileIsMissing()
     {
         var store = new JsonCalendarPopupLayoutStore(_path);

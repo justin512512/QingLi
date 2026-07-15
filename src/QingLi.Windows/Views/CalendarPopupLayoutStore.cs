@@ -11,7 +11,8 @@ public sealed record CalendarPopupLayout(
     double Top,
     double Width,
     double Height,
-    bool IsCustomized);
+    bool IsCustomized,
+    string? MonitorDeviceName = null);
 
 public interface ICalendarPopupLayoutStore
 {
@@ -150,5 +151,6 @@ public sealed class JsonCalendarPopupLayoutStore : ICalendarPopupLayoutStore
         double.IsFinite(layout.Width) &&
         double.IsFinite(layout.Height) &&
         layout.Width >= MinimumWidth &&
-        layout.Height >= MinimumHeight;
+        layout.Height >= MinimumHeight &&
+        (layout.MonitorDeviceName is null || !string.IsNullOrWhiteSpace(layout.MonitorDeviceName));
 }

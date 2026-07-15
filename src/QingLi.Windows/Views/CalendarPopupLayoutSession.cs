@@ -8,10 +8,10 @@ public sealed class CalendarPopupLayoutSession : IDisposable
     private static readonly TimeSpan DefaultSaveDelay = TimeSpan.FromMilliseconds(300);
 
     private readonly ICalendarPopupLayoutStore _store;
-    private readonly Func<IReadOnlyList<Rect>> _workAreasProvider;
-    private readonly Func<Rect> _fallbackWorkAreaProvider;
+    private readonly Func<IReadOnlyList<CalendarPopupPhysicalScreen>> _screensProvider;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly TimeSpan _saveDelay;
+    private readonly SynchronizationContext? _persistenceContext;
     private readonly object _sync = new();
 
     private CancellationTokenSource? _pendingSaveCancellation;
@@ -25,20 +25,19 @@ public sealed class CalendarPopupLayoutSession : IDisposable
 
     public CalendarPopupLayoutSession(
         ICalendarPopupLayoutStore store,
-        Func<IReadOnlyList<Rect>> workAreasProvider,
-        Func<Rect> fallbackWorkAreaProvider,
+        Func<IReadOnlyList<CalendarPopupPhysicalScreen>> screensProvider,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
-        TimeSpan? saveDelay = null)
+        TimeSpan? saveDelay = null,
+        SynchronizationContext? persistenceContext = null)
     {
         ArgumentNullException.ThrowIfNull(store);
-        ArgumentNullException.ThrowIfNull(workAreasProvider);
-        ArgumentNullException.ThrowIfNull(fallbackWorkAreaProvider);
+        ArgumentNullException.ThrowIfNull(screensProvider);
 
         _store = store;
-        _workAreasProvider = workAreasProvider;
-        _fallbackWorkAreaProvider = fallbackWorkAreaProvider;
+        _screensProvider = screensProvider;
         _delayAsync = delayAsync ?? Task.Delay;
         _saveDelay = saveDelay ?? DefaultSaveDelay;
+        _persistenceContext = persistenceContext ?? SynchronizationContext.Current;
         if (_saveDelay < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(saveDelay));
@@ -52,9 +51,9 @@ public sealed class CalendarPopupLayoutSession : IDisposable
     public bool IsCustomized { get; private set; }
 
     public Task<Rect> InitializeAsync(
-        Rect defaultBounds,
-        WpfSize minimumSize,
-        double visibleDragHeight,
+        Rect defaultPhysicalBounds,
+        WpfSize minimumSizeInDips,
+        double visibleDragHeightInDips,
         CancellationToken cancellationToken = default)
     {
         CancellationTokenSource initializationCancellation;
@@ -74,19 +73,132 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         }
 
         _ = RunInitializationAsync(
-            defaultBounds,
-            minimumSize,
-            visibleDragHeight,
+            defaultPhysicalBounds,
+            minimumSizeInDips,
+            visibleDragHeightInDips,
             version,
             initializationCancellation,
             completion);
         return completion.Task;
     }
 
+    public void RecordLayoutChange(Rect physicalBounds)
+    {
+        if (!IsValid(physicalBounds))
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_initialized)
+            {
+                return;
+            }
+        }
+
+        CalendarPopupLayout layout;
+        try
+        {
+            layout = CalendarPopupScreenGeometry.ToPersistedLayout(
+                physicalBounds,
+                _screensProvider());
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return;
+        }
+
+        CancellationTokenSource saveCancellation;
+        TaskCompletionSource completion;
+        long version;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_initialized)
+            {
+                return;
+            }
+
+            IsCustomized = true;
+            version = ++_changeVersion;
+            _pendingSaveCancellation?.Cancel();
+            saveCancellation = new CancellationTokenSource();
+            completion = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingSaveCancellation = saveCancellation;
+            _pendingSaveTask = completion.Task;
+        }
+
+        _ = RunPersistenceAsync(layout, version, saveCancellation, completion);
+    }
+
+    public async Task ResetAsync(CancellationToken cancellationToken = default)
+    {
+        CancellationTokenSource? initializationCancellation;
+        Task<Rect>? initialization;
+        CancellationTokenSource? pendingSaveCancellation;
+        Task pendingSave;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            _initializationVersion++;
+            _initializationCancellation?.Cancel();
+            initializationCancellation = _initializationCancellation;
+            initialization = _initializationTask;
+            _initialized = false;
+            IsCustomized = false;
+            _changeVersion++;
+            _pendingSaveCancellation?.Cancel();
+            pendingSaveCancellation = _pendingSaveCancellation;
+            pendingSave = _pendingSaveTask;
+        }
+
+        await IgnoreCompletionAsync(initialization);
+        await IgnoreCompletionAsync(pendingSave);
+
+        lock (_sync)
+        {
+            if (ReferenceEquals(_initializationCancellation, initializationCancellation))
+            {
+                _initializationCancellation = null;
+                _initializationTask = null;
+            }
+
+            if (ReferenceEquals(_pendingSaveCancellation, pendingSaveCancellation))
+            {
+                _pendingSaveCancellation = null;
+                _pendingSaveTask = Task.CompletedTask;
+            }
+        }
+
+        await _store.ClearAsync(cancellationToken);
+        LastPersistenceError = null;
+    }
+
+    public void Dispose()
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _initialized = false;
+            _initializationVersion++;
+            _initializationCancellation?.Cancel();
+            _changeVersion++;
+            _pendingSaveCancellation?.Cancel();
+        }
+    }
+
     private async Task RunInitializationAsync(
-        Rect defaultBounds,
-        WpfSize minimumSize,
-        double visibleDragHeight,
+        Rect defaultPhysicalBounds,
+        WpfSize minimumSizeInDips,
+        double visibleDragHeightInDips,
         long version,
         CancellationTokenSource initializationCancellation,
         TaskCompletionSource<Rect> completion)
@@ -94,27 +206,32 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         var cancellationToken = initializationCancellation.Token;
         try
         {
-            var saved = await _store.LoadAsync(cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var restored = defaultBounds;
+            var restored = defaultPhysicalBounds;
             var isCustomized = false;
-            if (saved is { IsCustomized: true } && IsValid(saved, minimumSize))
+            try
             {
-                try
+                var saved = await _store.LoadAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (saved is { IsCustomized: true }
+                    && IsValid(saved, minimumSizeInDips)
+                    && !string.IsNullOrWhiteSpace(saved.MonitorDeviceName))
                 {
-                    restored = CalendarPopupPlacement.ConstrainSaved(
-                        new Rect(saved.Left, saved.Top, saved.Width, saved.Height),
-                        _workAreasProvider(),
-                        _fallbackWorkAreaProvider(),
-                        minimumSize,
-                        visibleDragHeight);
+                    restored = CalendarPopupScreenGeometry.RestoreSavedLayout(
+                        saved,
+                        _screensProvider(),
+                        minimumSizeInDips,
+                        visibleDragHeightInDips);
                     isCustomized = true;
                 }
-                catch (ArgumentOutOfRangeException)
-                {
-                    restored = defaultBounds;
-                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                restored = defaultPhysicalBounds;
+                isCustomized = false;
             }
 
             lock (_sync)
@@ -155,130 +272,73 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         }
     }
 
-    public void RecordLayoutChange(Rect bounds)
-    {
-        if (!IsValid(bounds))
-        {
-            return;
-        }
-
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (!_initialized)
-            {
-                return;
-            }
-
-            IsCustomized = true;
-            var version = ++_changeVersion;
-            _pendingSaveCancellation?.Cancel();
-            _pendingSaveCancellation = new CancellationTokenSource();
-            var layout = new CalendarPopupLayout(
-                    bounds.Left,
-                    bounds.Top,
-                    bounds.Width,
-                    bounds.Height,
-                    true);
-            var cancellationToken = _pendingSaveCancellation.Token;
-            _pendingSaveTask = Task.Run(
-                () => PersistAfterDelayAsync(layout, version, cancellationToken));
-        }
-    }
-
-    public async Task ResetAsync(CancellationToken cancellationToken = default)
-    {
-        CancellationTokenSource? initializationCancellation;
-        Task<Rect>? initialization;
-        Task pendingSave;
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            _initializationVersion++;
-            _initializationCancellation?.Cancel();
-            initializationCancellation = _initializationCancellation;
-            initialization = _initializationTask;
-            _initialized = false;
-            IsCustomized = false;
-            _changeVersion++;
-            _pendingSaveCancellation?.Cancel();
-            pendingSave = _pendingSaveTask;
-        }
-
-        if (initialization is not null)
-        {
-            try
-            {
-                await initialization;
-            }
-            catch
-            {
-                // Reset still owns the final state if restore was canceled or failed.
-            }
-        }
-
-        lock (_sync)
-        {
-            if (ReferenceEquals(_initializationCancellation, initializationCancellation))
-            {
-                _initializationCancellation = null;
-                _initializationTask = null;
-            }
-        }
-
-        try
-        {
-            await pendingSave;
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        await _store.ClearAsync(cancellationToken);
-        LastPersistenceError = null;
-    }
-
-    public void Dispose()
-    {
-        lock (_sync)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _initialized = false;
-            _initializationVersion++;
-            _initializationCancellation?.Cancel();
-            _changeVersion++;
-            _pendingSaveCancellation?.Cancel();
-        }
-    }
-
-    private async Task PersistAfterDelayAsync(
+    private async Task RunPersistenceAsync(
         CalendarPopupLayout layout,
         long version,
-        CancellationToken cancellationToken)
+        CancellationTokenSource saveCancellation,
+        TaskCompletionSource completion)
     {
+        var cancellationToken = saveCancellation.Token;
         try
         {
             await _delayAsync(_saveDelay, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await _store.SaveAsync(layout, cancellationToken);
-            if (IsCurrent(version))
-            {
-                LastPersistenceError = null;
-            }
+            DispatchPersistenceResult(version, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
-            if (IsCurrent(version))
+            DispatchPersistenceResult(version, exception);
+        }
+        finally
+        {
+            completion.TrySetResult();
+            lock (_sync)
             {
-                LastPersistenceError = exception;
+                if (ReferenceEquals(_pendingSaveCancellation, saveCancellation))
+                {
+                    _pendingSaveCancellation = null;
+                    _pendingSaveTask = Task.CompletedTask;
+                }
+            }
+
+            saveCancellation.Dispose();
+        }
+    }
+
+    private void DispatchPersistenceResult(long version, Exception? exception)
+    {
+        if (_persistenceContext is null)
+        {
+            ApplyPersistenceResult(version, exception);
+            return;
+        }
+
+        _persistenceContext.Post(
+            static state =>
+            {
+                var result = (PersistenceResult)state!;
+                result.Session.ApplyPersistenceResult(result.Version, result.Exception);
+            },
+            new PersistenceResult(this, version, exception));
+    }
+
+    private void ApplyPersistenceResult(long version, Exception? exception)
+    {
+        lock (_sync)
+        {
+            if (_disposed || version != _changeVersion)
+            {
+                return;
+            }
+
+            LastPersistenceError = exception;
+            if (exception is null)
+            {
+                return;
             }
 
             try
@@ -287,16 +347,24 @@ public sealed class CalendarPopupLayoutSession : IDisposable
             }
             catch
             {
-                // Persistence remains best-effort even if a subscriber fails.
+                // Persistence is best-effort even if a subscriber fails.
             }
         }
     }
 
-    private bool IsCurrent(long version)
+    private static async Task IgnoreCompletionAsync(Task? task)
     {
-        lock (_sync)
+        if (task is null)
         {
-            return !_disposed && version == _changeVersion;
+            return;
+        }
+
+        try
+        {
+            await task;
+        }
+        catch
+        {
         }
     }
 
@@ -318,4 +386,9 @@ public sealed class CalendarPopupLayoutSession : IDisposable
         && double.IsFinite(bounds.Height)
         && bounds.Width > 0
         && bounds.Height > 0;
+
+    private sealed record PersistenceResult(
+        CalendarPopupLayoutSession Session,
+        long Version,
+        Exception? Exception);
 }

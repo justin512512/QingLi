@@ -26,6 +26,7 @@ internal static class CalendarPopupMonitorDpi
         if (monitor != nint.Zero && User32.GetMonitorInfo(monitor, ref monitorInfo))
         {
             return new CalendarPopupPhysicalScreen(
+                screen.DeviceName,
                 monitorInfo.MonitorBounds.ToRect(),
                 monitorInfo.WorkArea.ToRect(),
                 dpiX,
@@ -33,6 +34,7 @@ internal static class CalendarPopupMonitorDpi
         }
 
         return new CalendarPopupPhysicalScreen(
+            screen.DeviceName,
             ToRect(bounds),
             ToRect(screen.WorkingArea),
             dpiX,

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using QingLi.Windows.Interop;
 using QingLi.Windows.ViewModels;
 using WpfButton = System.Windows.Controls.Button;
@@ -37,8 +38,8 @@ public partial class CalendarPopupWindow : Window
         DataContext = viewModel;
         _layoutSession = new CalendarPopupLayoutSession(
             layoutStore,
-            GetWorkAreasInDips,
-            GetFallbackWorkAreaInDips);
+            GetPhysicalScreens,
+            persistenceContext: new DispatcherSynchronizationContext(Dispatcher));
         IsVisibleChanged += OnIsVisibleChanged;
     }
 
@@ -162,9 +163,16 @@ public partial class CalendarPopupWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (!_layoutInitialized)
+        try
         {
-            await EnsureLayoutRestoredAsync();
+            if (!_layoutInitialized)
+            {
+                await EnsureLayoutRestoredAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Reset owns the next physical placement.
         }
 
         Activate();
@@ -315,10 +323,9 @@ public partial class CalendarPopupWindow : Window
         _applyingLayout = true;
         try
         {
-            Left = bounds.Left;
-            Top = bounds.Top;
-            Width = bounds.Width;
-            Height = bounds.Height;
+            CalendarPopupNativePlacement.Apply(
+                new WindowInteropHelper(this).Handle,
+                bounds);
             _layoutInitialized = true;
         }
         finally
@@ -334,7 +341,11 @@ public partial class CalendarPopupWindow : Window
             return;
         }
 
-        _layoutSession.RecordLayoutChange(new Rect(Left, Top, ActualWidth, ActualHeight));
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle != nint.Zero && User32.GetWindowRect(handle, out var physicalBounds))
+        {
+            _layoutSession.RecordLayoutChange(physicalBounds.ToRect());
+        }
     }
 
     private Rect PositionNearClickedTaskbar()
@@ -342,42 +353,25 @@ public partial class CalendarPopupWindow : Window
         try
         {
             var cursor = FormsCursor.Position;
-            var cursorGeometry = CalendarPopupScreenGeometry.GetCursorGeometry(
+            return CalendarPopupScreenGeometry.PlaceNearCursor(
                 GetPhysicalScreens(),
-                new WpfPoint(cursor.X, cursor.Y));
-            return CalendarPopupPlacement.Calculate(
-                cursorGeometry.WorkArea,
-                new WpfSize(DefaultPopupWidth, DefaultPopupHeight),
-                cursorGeometry.Anchor);
+                new WpfPoint(cursor.X, cursor.Y),
+                new WpfSize(DefaultPopupWidth, DefaultPopupHeight));
         }
-        catch (ArgumentOutOfRangeException)
-        {
-            var workArea = SystemParameters.WorkArea;
-            return new Rect(
-                Math.Max(workArea.Left, workArea.Right - DefaultPopupWidth - 12),
-                Math.Max(workArea.Top, workArea.Bottom - DefaultPopupHeight - 12),
-                DefaultPopupWidth,
-                DefaultPopupHeight);
-        }
-    }
-
-    private IReadOnlyList<Rect> GetWorkAreasInDips()
-    {
-        return CalendarPopupScreenGeometry.GetWorkAreasInDips(GetPhysicalScreens());
-    }
-
-    private Rect GetFallbackWorkAreaInDips()
-    {
-        try
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             var cursor = FormsCursor.Position;
-            return CalendarPopupScreenGeometry.GetCursorGeometry(
-                GetPhysicalScreens(),
-                new WpfPoint(cursor.X, cursor.Y)).WorkArea;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return SystemParameters.WorkArea;
+            var screen = FormsScreen.FromPoint(cursor);
+            var workArea = screen.WorkingArea;
+            var dpi = User32.GetDpiForSystem();
+            var scale = dpi > 0 ? dpi / 96d : 1d;
+            var width = DefaultPopupWidth * scale;
+            var height = DefaultPopupHeight * scale;
+            return new Rect(
+                Math.Max(workArea.Left, workArea.Right - width - 12 * scale),
+                Math.Max(workArea.Top, workArea.Bottom - height - 12 * scale),
+                width,
+                height);
         }
     }
 
