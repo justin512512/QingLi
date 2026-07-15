@@ -1,17 +1,18 @@
 # 轻历 QingLi
 
-轻历是一款面向 Windows 11 x64 的本地桌面日历和生日提醒软件。当前核心版专注于月历、公历/农历生日记录、到期提醒、托盘菜单、主题设置和开机启动。
+轻历是一款面向 Windows 11 x64 的本地信息万年历。单击轻历接管的任务栏时间日期区域，即可打开三栏日历，查看农历黄历、历史上的今天、节日节气倒计时，以及生日和纪念日提醒。
 
 ## 核心承诺
 
-- 纯本地运行：月历、生日、备注、提醒记录和设置都保存在你的电脑上。
+- 纯本地运行：月历、黄历、历史数据、生日、纪念日、备注、提醒记录和设置都保存在你的电脑上。
 - 无会员、无付费墙：核心功能不需要登录、订阅或充值会员。
 - 无需联网即可打开和使用月历。
+- 不注入或修改 Explorer；任务栏时钟替换可随时关闭，并附带独立恢复工具。
 - 面向 Windows 11 x64；打包脚本发布 `win-x64` 自包含版本。
 
 ## 数据保存位置
 
-生日数据库保存在：
+生日和纪念日数据库保存在：
 
 ```text
 %LOCALAPPDATA%\QingLi\qingli.db
@@ -39,7 +40,9 @@ C:\Users\<你的用户名>\AppData\Local\QingLi\qingli.db
 ```powershell
 dotnet test QingLi.sln -c Release
 dotnet publish src/QingLi.Windows -c Release -r win-x64 --self-contained true
-powershell -ExecutionPolicy Bypass -File scripts/package.ps1
+powershell -ExecutionPolicy Bypass -File scripts/package.ps1 -PortableOnly
 ```
 
-`scripts/package.ps1` 会先运行测试，再发布自包含版本，并在 Windows SDK `makeappx.exe` 可用时生成 MSIX。若本机缺少 MSIX 打包工具，脚本会明确失败并说明如何安装，而不会假装已经生成安装包。
+`scripts/package.ps1 -PortableOnly` 会先运行测试，再生成可直接解压运行的自包含 ZIP。省略 `-PortableOnly` 时，脚本还会尝试使用 Windows SDK 生成 MSIX。
+
+详细使用方法见 [用户指南](docs/user-guide.md)，系统时钟异常时见 [恢复说明](docs/CLOCK-RECOVERY.md)。

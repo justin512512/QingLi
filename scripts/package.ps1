@@ -2,7 +2,8 @@
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
-    [string]$DotNetPath
+    [string]$DotNetPath,
+    [switch]$PortableOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -141,12 +142,29 @@ try {
     }
     Copy-Item -Path (Join-Path $recoveryPublishDir "QingLi.Recovery*") -Destination $publishDir -Force
 
+    $requiredFiles = @(
+        "QingLi.Windows.exe",
+        "QingLi.Recovery.exe",
+        "Assets\History\history-today.zh-CN.json",
+        "Assets\Holidays\cn-2026.json"
+    )
+    foreach ($requiredFile in $requiredFiles) {
+        $requiredPath = Join-Path $publishDir $requiredFile
+        if (-not (Test-Path -LiteralPath $requiredPath)) {
+            throw "Published output is missing required file: $requiredFile"
+        }
+    }
+
     if (Test-Path -LiteralPath $portableZip) {
         Remove-Item -LiteralPath $portableZip -Force
     }
 
     Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $portableZip -Force
     Write-Host "Portable artifact: $portableZip"
+
+    if ($PortableOnly) {
+        return
+    }
 
     $makeAppx = Find-MakeAppx
     if (-not $makeAppx) {
