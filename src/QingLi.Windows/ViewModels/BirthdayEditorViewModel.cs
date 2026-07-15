@@ -57,6 +57,7 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event Action<Birthday>? Saved;
 
     public AsyncCommand SaveCommand { get; }
 
@@ -150,6 +151,7 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
 
         ValidationErrors = [];
         await _birthdayRepository.SaveAsync(birthday!, CancellationToken.None);
+        Saved?.Invoke(birthday!);
     }
 
     private bool TryBuildBirthday(out Birthday? birthday, out IReadOnlyList<string> errors)

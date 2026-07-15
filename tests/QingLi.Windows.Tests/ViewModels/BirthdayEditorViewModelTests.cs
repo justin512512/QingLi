@@ -203,6 +203,19 @@ public sealed class BirthdayEditorViewModelTests
     }
 
     [Fact]
+    public async Task SaveCommandRaisesSavedEventAfterRepositoryWrite()
+    {
+        var repository = new RecordingBirthdayRepository();
+        var vm = BirthdayEditorFixture.Create("小林", "8", "18", repository: repository);
+        Birthday? eventValue = null;
+        vm.Saved += value => eventValue = value;
+
+        await vm.SaveCommand.ExecuteAsync();
+
+        Assert.Equal(Assert.Single(repository.SavedBirthdays), eventValue);
+    }
+
+    [Fact]
     public async Task Save_failure_sets_error_message_and_does_not_clear_window_state()
     {
         var repository = new RecordingBirthdayRepository
