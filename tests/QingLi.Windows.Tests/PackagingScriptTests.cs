@@ -12,6 +12,11 @@ public sealed class PackagingScriptTests
         Assert.Contains("Assets\\Holidays\\cn-2026.json", script);
         Assert.Contains("if ($PortableOnly)", script);
         Assert.Contains("QingLi.Recovery", script);
+        Assert.Contains("function Test-PortableArchive", script);
+        Assert.Contains("Get-FileHash", script);
+        Assert.Contains("Test-PortableArchive -ArchivePath $portableZip -SourceDirectory $publishDir", script);
+        Assert.DoesNotContain("[IO.Path]::GetRelativePath", script);
+        Assert.Contains(".Substring($sourcePrefix.Length)", script);
     }
 
     private static string GetScriptPath() => Path.Combine(

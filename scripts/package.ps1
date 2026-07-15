@@ -74,6 +74,50 @@ function Find-MakeAppx {
     return $candidate
 }
 
+function Test-PortableArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ArchivePath,
+        [Parameter(Mandatory = $true)]
+        [string]$SourceDirectory
+    )
+
+    $verificationDirectory = Join-Path $artifactsDir (".verify-" + [Guid]::NewGuid().ToString("N"))
+    try {
+        Expand-Archive -LiteralPath $ArchivePath -DestinationPath $verificationDirectory -Force
+
+        $sourceFiles = @(Get-ChildItem -LiteralPath $SourceDirectory -File -Recurse)
+        $extractedFiles = @(Get-ChildItem -LiteralPath $verificationDirectory -File -Recurse)
+        if ($sourceFiles.Count -ne $extractedFiles.Count) {
+            throw "Portable archive verification failed: expected $($sourceFiles.Count) files, extracted $($extractedFiles.Count)."
+        }
+
+        $sourcePrefix = (Resolve-Path -LiteralPath $SourceDirectory).Path
+        if (-not $sourcePrefix.EndsWith([IO.Path]::DirectorySeparatorChar)) {
+            $sourcePrefix += [IO.Path]::DirectorySeparatorChar
+        }
+
+        foreach ($sourceFile in $sourceFiles) {
+            $relativePath = $sourceFile.FullName.Substring($sourcePrefix.Length)
+            $extractedPath = Join-Path $verificationDirectory $relativePath
+            if (-not (Test-Path -LiteralPath $extractedPath -PathType Leaf)) {
+                throw "Portable archive verification failed: missing $relativePath."
+            }
+
+            $sourceHash = (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256).Hash
+            $extractedHash = (Get-FileHash -LiteralPath $extractedPath -Algorithm SHA256).Hash
+            if ($sourceHash -ne $extractedHash) {
+                throw "Portable archive verification failed: data mismatch for $relativePath."
+            }
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $verificationDirectory) {
+            Remove-Item -LiteralPath $verificationDirectory -Recurse -Force
+        }
+    }
+}
+
 function New-PackagePng {
     param(
         [string]$Path,
@@ -160,6 +204,7 @@ try {
     }
 
     Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $portableZip -Force
+    Test-PortableArchive -ArchivePath $portableZip -SourceDirectory $publishDir
     Write-Host "Portable artifact: $portableZip"
 
     if ($PortableOnly) {
