@@ -41,6 +41,7 @@ public partial class App : System.Windows.Application
     private ClockWindowController? _clockWindowController;
     private IClockReplacementCoordinator? _clockReplacementCoordinator;
     private ClockReplacementExitOrchestrator? _exitOrchestrator;
+    private bool _isFirstRun;
 
     public IBirthdayRepository BirthdayRepository { get; private set; } = null!;
 
@@ -65,8 +66,10 @@ public partial class App : System.Windows.Application
 
             if (_clockReplacementCoordinator is not null)
             {
-                var recovery = await _clockReplacementCoordinator.RecoverOnStartupAsync(
-                    _appSettings, CancellationToken.None);
+                var startup = new ClockReplacementStartupOrchestrator(
+                    _clockReplacementCoordinator);
+                var recovery = await startup.StartAsync(
+                    _isFirstRun, _appSettings, CancellationToken.None);
                 _appSettings = recovery.Settings;
                 if (!recovery.Succeeded && !string.IsNullOrWhiteSpace(recovery.ErrorMessage))
                 {
@@ -156,7 +159,9 @@ public partial class App : System.Windows.Application
 
     private async Task InitializeSettingsAsync()
     {
-        _settingsStore = new JsonSettingsStore(Path.Combine(AppPaths.DataDirectory, "settings.json"));
+        var settingsPath = Path.Combine(AppPaths.DataDirectory, "settings.json");
+        _isFirstRun = !File.Exists(settingsPath);
+        _settingsStore = new JsonSettingsStore(settingsPath);
         _appSettings = await _settingsStore.LoadAsync(CancellationToken.None);
     }
 

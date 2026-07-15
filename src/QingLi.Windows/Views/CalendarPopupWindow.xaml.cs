@@ -6,6 +6,9 @@ namespace QingLi.Windows.Views;
 
 public partial class CalendarPopupWindow : Window
 {
+    private readonly CalendarPopupDeactivationGuard _deactivationGuard =
+        new(TimeSpan.FromMilliseconds(750));
+
     public CalendarPopupWindow(CalendarPopupViewModel viewModel)
     {
         InitializeComponent();
@@ -26,9 +29,16 @@ public partial class CalendarPopupWindow : Window
         PositionInWorkArea();
         Activate();
         Focus();
+        _deactivationGuard.MarkShown();
     }
 
-    private void OnDeactivated(object sender, EventArgs e) => Close();
+    private void OnDeactivated(object sender, EventArgs e)
+    {
+        if (_deactivationGuard.ShouldClose())
+        {
+            Close();
+        }
+    }
 
     private void PositionInWorkArea()
     {

@@ -1,5 +1,4 @@
 using System.Security.Principal;
-using System.Windows;
 using QingLi.Core.Reminders;
 using QingLi.Windows.Scheduling;
 using QingLi.Windows.Tray;
@@ -13,13 +12,18 @@ public sealed class WindowsNotificationService :
 {
     private readonly TrayIconService _trayIconService;
     private readonly Action<Guid>? _openBirthday;
-    private bool _adminWarningShown;
+    private readonly NotificationAvailabilityWarning _availabilityWarning;
     private Guid? _lastBirthdayId;
 
     public WindowsNotificationService(TrayIconService trayIconService, Action<Guid>? openBirthday = null)
     {
         _trayIconService = trayIconService;
         _openBirthday = openBirthday;
+        _availabilityWarning = new NotificationAvailabilityWarning(() =>
+            _trayIconService.ShowBalloonTip(
+                "轻历",
+                "当前以管理员身份运行，生日通知已暂停；日历等其他功能仍可正常使用。",
+                8_000));
         _trayIconService.BalloonTipClicked += HandleBalloonTipClicked;
     }
 
@@ -34,7 +38,7 @@ public sealed class WindowsNotificationService :
 
         if (IsProcessElevated())
         {
-            ShowAdminWarningOnce();
+            _availabilityWarning.ShowOnce();
             throw new NotificationUnavailableException(
                 "通知功能需要普通用户运行。请退出后以普通用户身份重新启动轻历。");
         }
@@ -58,22 +62,7 @@ public sealed class WindowsNotificationService :
         }
     }
 
-    public void ShowUnavailableWarning() => ShowAdminWarningOnce();
-
-    private void ShowAdminWarningOnce()
-    {
-        if (_adminWarningShown)
-        {
-            return;
-        }
-
-        _adminWarningShown = true;
-        System.Windows.MessageBox.Show(
-            "当前以管理员身份运行，生日通知已暂停；日历等其他功能仍可正常使用。",
-            "轻历",
-            MessageBoxButton.OK,
-            MessageBoxImage.Warning);
-    }
+    public void ShowUnavailableWarning() => _availabilityWarning.ShowOnce();
 
     public static bool IsProcessElevated()
     {
