@@ -41,11 +41,12 @@ public sealed class DatabaseMigrator(SqliteConnectionFactory connectionFactory)
         CREATE INDEX IF NOT EXISTS ix_anniversaries_title ON anniversaries(title);
 
         CREATE TABLE IF NOT EXISTS reminder_history (
-          birthday_id TEXT NOT NULL,
+          subject_kind INTEGER NOT NULL,
+          subject_id TEXT NOT NULL,
           scheduled_at TEXT NOT NULL,
           occurrence_date TEXT NOT NULL,
           sent_at TEXT NOT NULL,
-          PRIMARY KEY (birthday_id, scheduled_at)
+          PRIMARY KEY (subject_kind, subject_id, occurrence_date)
         );
 
         CREATE TABLE IF NOT EXISTS settings (
@@ -69,6 +70,7 @@ public sealed class DatabaseMigrator(SqliteConnectionFactory connectionFactory)
             await using var command = connection.CreateCommand();
             command.CommandText = Schema;
             await command.ExecuteNonQueryAsync(cancellationToken);
+            await MigrateLegacyReminderHistoryAsync(connection, cancellationToken);
             return new DatabaseMigrationResult(true);
         }
         catch (SqliteException exception)
@@ -77,6 +79,49 @@ public sealed class DatabaseMigrator(SqliteConnectionFactory connectionFactory)
             await TryOpenReadOnlyAsync(cancellationToken);
             return new DatabaseMigrationResult(false, preservedCopy, exception.Message);
         }
+    }
+
+    private static async Task MigrateLegacyReminderHistoryAsync(
+        SqliteConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using var inspect = connection.CreateCommand();
+        inspect.CommandText = "PRAGMA table_info(reminder_history);";
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var reader = await inspect.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                columns.Add(reader.GetString(1));
+            }
+        }
+
+        if (!columns.Contains("birthday_id"))
+        {
+            return;
+        }
+
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var migrate = connection.CreateCommand();
+        migrate.Transaction = (SqliteTransaction)transaction;
+        migrate.CommandText = """
+            ALTER TABLE reminder_history RENAME TO reminder_history_legacy;
+            CREATE TABLE reminder_history (
+              subject_kind INTEGER NOT NULL,
+              subject_id TEXT NOT NULL,
+              scheduled_at TEXT NOT NULL,
+              occurrence_date TEXT NOT NULL,
+              sent_at TEXT NOT NULL,
+              PRIMARY KEY (subject_kind, subject_id, occurrence_date)
+            );
+            INSERT OR IGNORE INTO reminder_history(
+              subject_kind, subject_id, scheduled_at, occurrence_date, sent_at)
+            SELECT 0, birthday_id, scheduled_at, occurrence_date, sent_at
+            FROM reminder_history_legacy;
+            DROP TABLE reminder_history_legacy;
+            """;
+        await migrate.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task<string?> PreserveCorruptDatabaseAsync(CancellationToken cancellationToken)

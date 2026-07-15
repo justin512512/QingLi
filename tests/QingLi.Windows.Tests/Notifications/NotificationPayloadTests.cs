@@ -14,13 +14,30 @@ public sealed class NotificationPayloadTests
 
         Assert.Contains("小林", payload.Title);
         Assert.Contains("8月18日", payload.Body);
-        Assert.Equal($"action=open-birthday&birthdayId={candidate.BirthdayId:D}", payload.Arguments);
+        Assert.Equal($"action=open-birthday&birthdayId={candidate.SubjectId:D}", payload.Arguments);
+    }
+
+    [Fact]
+    public void AnniversaryPayloadContainsKindDateAndAction()
+    {
+        var candidate = new ReminderCandidate(
+            ReminderSubjectKind.Anniversary,
+            Guid.NewGuid(),
+            "结婚纪念日",
+            new DateOnly(2027, 5, 20),
+            new DateTimeOffset(2027, 5, 13, 9, 0, 0, TimeSpan.FromHours(8)));
+
+        var payload = NotificationPayloadBuilder.Build(candidate);
+
+        Assert.Contains("纪念日提醒", payload.Title);
+        Assert.Contains("5月20日", payload.Body);
+        Assert.Equal($"action=open-anniversary&anniversaryId={candidate.SubjectId:D}", payload.Arguments);
     }
 
     private static class ReminderSamples
     {
         public static ReminderCandidate For(string name, DateOnly occurrenceDate) =>
-            new(Guid.NewGuid(), name, occurrenceDate, occurrenceDate.ToDateTimeOffset());
+            new(ReminderSubjectKind.Birthday, Guid.NewGuid(), name, occurrenceDate, occurrenceDate.ToDateTimeOffset());
     }
 }
 

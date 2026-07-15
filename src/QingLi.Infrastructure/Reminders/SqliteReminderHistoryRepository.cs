@@ -9,8 +9,9 @@ public sealed class SqliteReminderHistoryRepository(SqliteConnectionFactory conn
     : IReminderHistoryRepository
 {
     public async Task<bool> WasSentAsync(
-        Guid birthdayId,
-        DateTimeOffset scheduledAt,
+        ReminderSubjectKind subjectKind,
+        Guid subjectId,
+        DateOnly occurrenceDate,
         CancellationToken cancellationToken)
     {
         await using var connection = connectionFactory.Create();
@@ -19,10 +20,15 @@ public sealed class SqliteReminderHistoryRepository(SqliteConnectionFactory conn
         command.CommandText = """
             SELECT EXISTS(
               SELECT 1 FROM reminder_history
-              WHERE birthday_id = $birthdayId AND scheduled_at = $scheduledAt);
+              WHERE subject_kind = $subjectKind
+                AND subject_id = $subjectId
+                AND occurrence_date = $occurrenceDate);
             """;
-        command.Parameters.AddWithValue("$birthdayId", birthdayId.ToString("D"));
-        command.Parameters.AddWithValue("$scheduledAt", Format(scheduledAt));
+        command.Parameters.AddWithValue("$subjectKind", (int)subjectKind);
+        command.Parameters.AddWithValue("$subjectId", subjectId.ToString("D"));
+        command.Parameters.AddWithValue(
+            "$occurrenceDate",
+            occurrenceDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) == 1;
     }
 
@@ -38,10 +44,11 @@ public sealed class SqliteReminderHistoryRepository(SqliteConnectionFactory conn
         command.Transaction = (SqliteTransaction)transaction;
         command.CommandText = """
             INSERT OR IGNORE INTO reminder_history(
-              birthday_id, scheduled_at, occurrence_date, sent_at)
-            VALUES($birthdayId, $scheduledAt, $occurrenceDate, $sentAt);
+              subject_kind, subject_id, scheduled_at, occurrence_date, sent_at)
+            VALUES($subjectKind, $subjectId, $scheduledAt, $occurrenceDate, $sentAt);
             """;
-        command.Parameters.AddWithValue("$birthdayId", candidate.BirthdayId.ToString("D"));
+        command.Parameters.AddWithValue("$subjectKind", (int)candidate.SubjectKind);
+        command.Parameters.AddWithValue("$subjectId", candidate.SubjectId.ToString("D"));
         command.Parameters.AddWithValue("$scheduledAt", Format(candidate.ScheduledAt));
         command.Parameters.AddWithValue(
             "$occurrenceDate",

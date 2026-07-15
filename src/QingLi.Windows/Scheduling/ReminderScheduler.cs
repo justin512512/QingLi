@@ -1,3 +1,4 @@
+using QingLi.Core.Anniversaries;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Reminders;
 using Microsoft.Win32;
@@ -6,6 +7,7 @@ namespace QingLi.Windows.Scheduling;
 
 public sealed class ReminderScheduler(
     IBirthdayRepository birthdays,
+    IAnniversaryRepository anniversaries,
     ReminderPlanner planner,
     IReminderHistoryRepository history,
     IReminderSuppression suppression,
@@ -49,7 +51,12 @@ public sealed class ReminderScheduler(
         {
             var localToday = DateOnly.FromDateTime(now.DateTime);
             var allBirthdays = await birthdays.ListAsync(null, localToday, cancellationToken);
-            var candidates = planner.DueBetween(allBirthdays, _lastSuccessfulCheck, now);
+            var allAnniversaries = await anniversaries.ListAsync(null, localToday, cancellationToken);
+            var candidates = planner.DueBetween(
+                allBirthdays,
+                allAnniversaries,
+                _lastSuccessfulCheck,
+                now);
             var suppressedDate = await suppression.GetSuppressedDateAsync(cancellationToken);
 
             foreach (var candidate in candidates)
@@ -61,7 +68,10 @@ public sealed class ReminderScheduler(
                 }
 
                 if (await history.WasSentAsync(
-                    candidate.BirthdayId, candidate.ScheduledAt, cancellationToken))
+                    candidate.SubjectKind,
+                    candidate.SubjectId,
+                    candidate.OccurrenceDate,
+                    cancellationToken))
                 {
                     continue;
                 }

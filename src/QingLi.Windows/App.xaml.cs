@@ -1,12 +1,14 @@
 using System.IO;
 using System.Diagnostics;
 using System.Windows;
+using QingLi.Core.Anniversaries;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
 using QingLi.Core.ClockReplacement;
 using QingLi.Core.Holidays;
 using QingLi.Core.Reminders;
 using QingLi.Core.Settings;
+using QingLi.Infrastructure.Anniversaries;
 using QingLi.Infrastructure.Birthdays;
 using QingLi.Infrastructure.ClockReplacement;
 using QingLi.Infrastructure.Data;
@@ -44,6 +46,7 @@ public partial class App : System.Windows.Application
     private bool _isFirstRun;
 
     public IBirthdayRepository BirthdayRepository { get; private set; } = null!;
+    public IAnniversaryRepository AnniversaryRepository { get; private set; } = null!;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -179,6 +182,7 @@ public partial class App : System.Windows.Application
         }
 
         BirthdayRepository = new SqliteBirthdayRepository(connectionFactory);
+        AnniversaryRepository = new SqliteAnniversaryRepository(connectionFactory);
         _reminderSuppression = new SqliteReminderSuppression(connectionFactory);
         _reminderHistory = new SqliteReminderHistoryRepository(connectionFactory);
 
@@ -364,7 +368,8 @@ public partial class App : System.Windows.Application
         var startupTime = DateTimeOffset.Now;
         _reminderScheduler = new ReminderScheduler(
             BirthdayRepository,
-            new ReminderPlanner(new BirthdayOccurrenceService()),
+            AnniversaryRepository,
+            new ReminderPlanner(new BirthdayOccurrenceService(), new AnniversaryOccurrenceService()),
             _reminderHistory,
             _reminderSuppression,
             _notificationService,

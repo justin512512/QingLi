@@ -3,8 +3,9 @@ namespace QingLi.Core.Reminders;
 public interface IReminderHistoryRepository
 {
     Task<bool> WasSentAsync(
-        Guid birthdayId,
-        DateTimeOffset scheduledAt,
+        ReminderSubjectKind subjectKind,
+        Guid subjectId,
+        DateOnly occurrenceDate,
         CancellationToken cancellationToken);
 
     Task RecordSentAsync(

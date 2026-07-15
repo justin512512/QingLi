@@ -44,7 +44,9 @@ public sealed class WindowsNotificationService :
         }
 
         var payload = NotificationPayloadBuilder.Build(candidate);
-        _lastBirthdayId = candidate.BirthdayId;
+        _lastBirthdayId = candidate.SubjectKind == ReminderSubjectKind.Birthday
+            ? candidate.SubjectId
+            : null;
         _trayIconService.ShowBalloonTip(payload.Title, payload.Body, 10_000);
         return Task.CompletedTask;
     }

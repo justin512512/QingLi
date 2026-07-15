@@ -1,3 +1,4 @@
+using QingLi.Core.Anniversaries;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Reminders;
 using QingLi.Windows.Scheduling;
@@ -52,6 +53,7 @@ public sealed class ReminderSchedulerTests
         var history = new History();
         var scheduler = new ReminderScheduler(
             new BirthdayRepository(birthday),
+            new AnniversaryRepository(),
             new ReminderPlanner(new BirthdayOccurrenceService()),
             history,
             new Suppression(),
@@ -64,9 +66,35 @@ public sealed class ReminderSchedulerTests
                 default));
 
         Assert.False(await history.WasSentAsync(
+            ReminderSubjectKind.Birthday,
             birthday.Id,
-            new DateTimeOffset(2027, 8, 15, 9, 0, 0, TimeSpan.FromHours(8)),
+            new DateOnly(2027, 8, 18),
             default));
+    }
+
+    [Fact]
+    public async Task WakeCheckSendsDueAnniversaryOnce()
+    {
+        var anniversary = new Anniversary(
+            Guid.NewGuid(), "结婚纪念日", AnniversaryCalendarKind.Gregorian,
+            2020, 5, 20, false, 7, new TimeOnly(9, 0), null, true);
+        var notifications = new NotificationSink();
+        var scheduler = new ReminderScheduler(
+            new BirthdayRepository(),
+            new AnniversaryRepository(anniversary),
+            new ReminderPlanner(new BirthdayOccurrenceService(), new AnniversaryOccurrenceService()),
+            new History(),
+            new Suppression(),
+            notifications,
+            new DateTimeOffset(2027, 5, 13, 8, 0, 0, TimeSpan.FromHours(8)));
+
+        var now = new DateTimeOffset(2027, 5, 13, 10, 0, 0, TimeSpan.FromHours(8));
+        await scheduler.CheckAsync(now, default);
+        await scheduler.CheckAsync(now, default);
+
+        var sent = Assert.Single(notifications.Sent);
+        Assert.Equal(ReminderSubjectKind.Anniversary, sent.SubjectKind);
+        Assert.Equal(anniversary.Id, sent.SubjectId);
     }
 
     private sealed class SchedulerFixture
@@ -81,6 +109,7 @@ public sealed class ReminderSchedulerTests
             Suppression = new Suppression();
             Scheduler = new ReminderScheduler(
                 repository,
+                new AnniversaryRepository(),
                 new ReminderPlanner(new BirthdayOccurrenceService()),
                 new History(),
                 Suppression,
@@ -94,14 +123,14 @@ public sealed class ReminderSchedulerTests
         public ReminderScheduler Scheduler { get; }
     }
 
-    private sealed class BirthdayRepository(Birthday birthday) : IBirthdayRepository
+    private sealed class BirthdayRepository(Birthday? birthday = null) : IBirthdayRepository
     {
         public Task<IReadOnlyList<Birthday>> ListAsync(
             string? nameFilter, DateOnly today, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<Birthday>>([birthday]);
+            Task.FromResult<IReadOnlyList<Birthday>>(birthday is null ? [] : [birthday]);
 
         public Task<Birthday?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<Birthday?>(birthday.Id == id ? birthday : null);
+            Task.FromResult<Birthday?>(birthday?.Id == id ? birthday : null);
 
         public Task SaveAsync(Birthday value, CancellationToken cancellationToken) =>
             Task.CompletedTask;
@@ -110,18 +139,35 @@ public sealed class ReminderSchedulerTests
             Task.CompletedTask;
     }
 
+    private sealed class AnniversaryRepository(Anniversary? anniversary = null) : IAnniversaryRepository
+    {
+        public Task<IReadOnlyList<Anniversary>> ListAsync(
+            string? titleFilter, DateOnly today, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Anniversary>>(anniversary is null ? [] : [anniversary]);
+
+        public Task<Anniversary?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<Anniversary?>(anniversary?.Id == id ? anniversary : null);
+
+        public Task SaveAsync(Anniversary value, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     private sealed class History : IReminderHistoryRepository
     {
-        private readonly HashSet<(Guid Id, DateTimeOffset At)> _sent = [];
+        private readonly HashSet<(ReminderSubjectKind Kind, Guid Id, DateOnly Date)> _sent = [];
 
         public Task<bool> WasSentAsync(
-            Guid birthdayId, DateTimeOffset scheduledAt, CancellationToken cancellationToken) =>
-            Task.FromResult(_sent.Contains((birthdayId, scheduledAt)));
+            ReminderSubjectKind subjectKind,
+            Guid subjectId,
+            DateOnly occurrenceDate,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(_sent.Contains((subjectKind, subjectId, occurrenceDate)));
 
         public Task RecordSentAsync(
             ReminderCandidate candidate, DateTimeOffset sentAt, CancellationToken cancellationToken)
         {
-            _sent.Add((candidate.BirthdayId, candidate.ScheduledAt));
+            _sent.Add((candidate.SubjectKind, candidate.SubjectId, candidate.OccurrenceDate));
             return Task.CompletedTask;
         }
     }

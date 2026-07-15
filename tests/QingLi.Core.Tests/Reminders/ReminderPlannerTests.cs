@@ -1,3 +1,4 @@
+using QingLi.Core.Anniversaries;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Reminders;
 
@@ -48,6 +49,47 @@ public sealed class ReminderPlannerTests
         Assert.Single(result);
         Assert.Equal(new DateOnly(2027, 1, 2), result[0].OccurrenceDate);
         Assert.Equal(new DateOnly(2026, 12, 30), DateOnly.FromDateTime(result[0].ScheduledAt.DateTime));
+    }
+
+    [Fact]
+    public void PlansEnabledAnniversaryWithSubjectIdentity()
+    {
+        var anniversary = new Anniversary(
+            Guid.NewGuid(), "结婚纪念日", AnniversaryCalendarKind.Gregorian,
+            2020, 5, 20, false, 7, new TimeOnly(9, 0), null, true);
+        var planner = new ReminderPlanner(
+            new BirthdayOccurrenceService(),
+            new AnniversaryOccurrenceService());
+
+        var result = planner.DueBetween(
+            [],
+            [anniversary],
+            new DateTimeOffset(2027, 5, 13, 8, 59, 0, TimeSpan.FromHours(8)),
+            new DateTimeOffset(2027, 5, 13, 9, 1, 0, TimeSpan.FromHours(8)));
+
+        var candidate = Assert.Single(result);
+        Assert.Equal(ReminderSubjectKind.Anniversary, candidate.SubjectKind);
+        Assert.Equal(anniversary.Id, candidate.SubjectId);
+        Assert.Equal(new DateOnly(2027, 5, 20), candidate.OccurrenceDate);
+    }
+
+    [Fact]
+    public void DisabledAnniversaryDoesNotCreateCandidate()
+    {
+        var anniversary = new Anniversary(
+            Guid.NewGuid(), "结婚纪念日", AnniversaryCalendarKind.Gregorian,
+            2020, 5, 20, false, 7, new TimeOnly(9, 0), null, false);
+        var planner = new ReminderPlanner(
+            new BirthdayOccurrenceService(),
+            new AnniversaryOccurrenceService());
+
+        var result = planner.DueBetween(
+            [],
+            [anniversary],
+            new DateTimeOffset(2027, 5, 13, 8, 59, 0, TimeSpan.FromHours(8)),
+            new DateTimeOffset(2027, 5, 13, 9, 1, 0, TimeSpan.FromHours(8)));
+
+        Assert.Empty(result);
     }
 
     private static Birthday Gregorian(
