@@ -95,6 +95,72 @@ public sealed class CalendarPopupLayoutStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentSavesCompleteInInvocationOrder()
+    {
+        var store = new JsonCalendarPopupLayoutStore(_path);
+        var first = new CalendarPopupLayout(10, 20, 800, 500, false);
+        var second = new CalendarPopupLayout(30, 40, 900, 600, true);
+
+        var firstSave = store.SaveAsync(first, CancellationToken.None);
+        var secondSave = store.SaveAsync(second, CancellationToken.None);
+        await Task.WhenAll(firstSave, secondSave);
+
+        Assert.Equal(second, await store.LoadAsync(CancellationToken.None));
+        Assert.False(File.Exists(_path + ".tmp"));
+    }
+
+    [Fact]
+    public async Task ClearInvokedAfterSaveWaitsForSaveAndWins()
+    {
+        var store = new JsonCalendarPopupLayoutStore(_path);
+        var layout = new CalendarPopupLayout(10, 20, 800, 500, true);
+
+        var save = store.SaveAsync(layout, CancellationToken.None);
+        var clear = store.ClearAsync(CancellationToken.None);
+        await Task.WhenAll(save, clear);
+
+        Assert.Null(await store.LoadAsync(CancellationToken.None));
+        Assert.False(File.Exists(_path + ".tmp"));
+    }
+
+    [Fact]
+    public async Task CancelledSavePreservesExistingLayoutAndRemovesTempFile()
+    {
+        var store = new JsonCalendarPopupLayoutStore(_path);
+        var original = new CalendarPopupLayout(10, 20, 800, 500, false);
+        var replacement = new CalendarPopupLayout(30, 40, 900, 600, true);
+        await store.SaveAsync(original, CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            store.SaveAsync(replacement, cancellation.Token));
+
+        Assert.Equal(original, await store.LoadAsync(CancellationToken.None));
+        Assert.False(File.Exists(_path + ".tmp"));
+    }
+
+    [Fact]
+    public async Task FailedReplacementPreservesExistingLayoutAndRemovesTempFile()
+    {
+        var store = new JsonCalendarPopupLayoutStore(_path);
+        var original = new CalendarPopupLayout(10, 20, 800, 500, false);
+        var replacement = new CalendarPopupLayout(30, 40, 900, 600, true);
+        await store.SaveAsync(original, CancellationToken.None);
+
+        using (File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var exception = await Record.ExceptionAsync(() =>
+                store.SaveAsync(replacement, CancellationToken.None));
+
+            Assert.True(exception is IOException or UnauthorizedAccessException);
+        }
+
+        Assert.Equal(original, await store.LoadAsync(CancellationToken.None));
+        Assert.False(File.Exists(_path + ".tmp"));
+    }
+
+    [Fact]
     public async Task ClearDeletesLayoutAndStaleTempButPreservesSiblingFiles()
     {
         var store = new JsonCalendarPopupLayoutStore(_path);

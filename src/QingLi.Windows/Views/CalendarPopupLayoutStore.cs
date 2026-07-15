@@ -26,6 +26,7 @@ public sealed class JsonCalendarPopupLayoutStore : ICalendarPopupLayoutStore
 
     private readonly string _path;
     private readonly string _tempPath;
+    private readonly SemaphoreSlim _mutationGate = new(1, 1);
 
     public JsonCalendarPopupLayoutStore(string path)
     {
@@ -74,28 +75,49 @@ public sealed class JsonCalendarPopupLayoutStore : ICalendarPopupLayoutStore
             throw new ArgumentOutOfRangeException(nameof(layout), "Popup layout values are invalid.");
         }
 
-        await using (var stream = new FileStream(
-            _tempPath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            bufferSize: 4096,
-            FileOptions.Asynchronous))
+        await _mutationGate.WaitAsync(cancellationToken);
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, layout, cancellationToken: cancellationToken);
-            await stream.FlushAsync(cancellationToken);
-            stream.Flush(flushToDisk: true);
-        }
+            try
+            {
+                await using (var stream = new FileStream(
+                    _tempPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 4096,
+                    FileOptions.Asynchronous))
+                {
+                    await JsonSerializer.SerializeAsync(stream, layout, cancellationToken: cancellationToken);
+                    await stream.FlushAsync(cancellationToken);
+                    stream.Flush(flushToDisk: true);
+                }
 
-        File.Move(_tempPath, _path, overwrite: true);
+                File.Move(_tempPath, _path, overwrite: true);
+            }
+            finally
+            {
+                File.Delete(_tempPath);
+            }
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
     }
 
-    public Task ClearAsync(CancellationToken cancellationToken)
+    public async Task ClearAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        File.Delete(_path);
-        File.Delete(_tempPath);
-        return Task.CompletedTask;
+        await _mutationGate.WaitAsync(cancellationToken);
+        try
+        {
+            File.Delete(_path);
+            File.Delete(_tempPath);
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
     }
 
     private static bool IsValid(CalendarPopupLayout layout) =>
