@@ -1,18 +1,22 @@
 using System.IO;
 using System.Diagnostics;
 using System.Windows;
+using QingLi.Core.Almanac;
 using QingLi.Core.Anniversaries;
 using QingLi.Core.Birthdays;
 using QingLi.Core.Calendars;
 using QingLi.Core.ClockReplacement;
 using QingLi.Core.Holidays;
+using QingLi.Core.History;
 using QingLi.Core.Reminders;
 using QingLi.Core.Settings;
+using QingLi.Core.Upcoming;
 using QingLi.Infrastructure.Anniversaries;
 using QingLi.Infrastructure.Birthdays;
 using QingLi.Infrastructure.ClockReplacement;
 using QingLi.Infrastructure.Data;
 using QingLi.Infrastructure.Holidays;
+using QingLi.Infrastructure.History;
 using QingLi.Infrastructure.Reminders;
 using QingLi.Windows.Notifications;
 using QingLi.Windows.ClockReplacement;
@@ -28,7 +32,7 @@ namespace QingLi.Windows;
 
 public partial class App : System.Windows.Application
 {
-    private CalendarPopupViewModel? _calendarPopupViewModel;
+    private CalendarDashboardViewModel? _calendarDashboardViewModel;
     private CalendarPopupWindow? _calendarPopupWindow;
     private TrayIconService? _trayIconService;
     private ISettingsStore? _settingsStore;
@@ -91,7 +95,7 @@ public partial class App : System.Windows.Application
                 onPauseTodayReminders: PauseTodayReminders,
                 onRestoreSystemClock: RestoreSystemClock,
                 onExit: ExitSafely);
-            _calendarPopupViewModel = await CreateCalendarPopupViewModelAsync();
+            _calendarDashboardViewModel = await CreateCalendarDashboardViewModelAsync();
             _birthdayManagerHost = new SingletonWindowHost(() => new WindowAdapter(CreateBirthdayManagerWindow()));
             _settingsHost = new SingletonWindowHost(() => new WindowAdapter(CreateSettingsWindow()));
             CreateReminderScheduler();
@@ -154,6 +158,7 @@ public partial class App : System.Windows.Application
         }
 
         _notificationService?.Dispose();
+        _calendarDashboardViewModel?.Dispose();
         _clockWindowController?.Dispose();
         _trayIconService?.Dispose();
         _calendarPopupWindow?.Close();
@@ -168,7 +173,7 @@ public partial class App : System.Windows.Application
         _appSettings = await _settingsStore.LoadAsync(CancellationToken.None);
     }
 
-    private async Task<CalendarPopupViewModel> CreateCalendarPopupViewModelAsync()
+    private async Task<CalendarDashboardViewModel> CreateCalendarDashboardViewModelAsync()
     {
         Directory.CreateDirectory(AppPaths.DataDirectory);
 
@@ -187,20 +192,54 @@ public partial class App : System.Windows.Application
         _reminderHistory = new SqliteReminderHistoryRepository(connectionFactory);
 
         var holidayDefinitions = await LoadHolidayDefinitionsAsync();
+        var holidayService = new HolidayService(holidayDefinitions);
         var calendarMonthService = new CalendarMonthService(
             new LunarCalendarService(),
             new SolarTermService(),
-            new HolidayService(holidayDefinitions));
+            holidayService);
 
-        var viewModel = new CalendarPopupViewModel(
+        var calendar = new CalendarPopupViewModel(
             calendarMonthService,
             BirthdayRepository,
             new BirthdayOccurrenceService(),
             DateOnly.FromDateTime(DateTime.Today),
             _appSettings.FirstDayOfWeek);
+        var almanac = new LunarSharpAlmanacService();
+        var history = await LoadHistoryProviderAsync();
+        var upcoming = new UpcomingEventService(
+            new SolarTermService(),
+            holidayService,
+            almanac,
+            BirthdayRepository,
+            AnniversaryRepository,
+            new BirthdayOccurrenceService(),
+            new AnniversaryOccurrenceService());
+        var dashboard = new CalendarDashboardViewModel(
+            calendar,
+            almanac,
+            history,
+            upcoming,
+            DateOnly.FromDateTime(DateTime.Today));
 
-        await viewModel.InitializeAsync();
-        return viewModel;
+        await dashboard.InitializeAsync();
+        return dashboard;
+    }
+
+    private static async Task<IHistoryTodayProvider> LoadHistoryProviderAsync()
+    {
+        try
+        {
+            var path = Path.Combine(
+                AppContext.BaseDirectory,
+                "Assets",
+                "History",
+                "history-today.zh-CN.json");
+            return await JsonHistoryTodayProvider.LoadAsync(path);
+        }
+        catch
+        {
+            return EmptyHistoryTodayProvider.Instance;
+        }
     }
 
     private static async Task<IReadOnlyList<HolidayDefinition>> LoadHolidayDefinitionsAsync()
@@ -224,23 +263,23 @@ public partial class App : System.Windows.Application
 
     private void ToggleCalendar()
     {
-        if (_calendarPopupViewModel is null)
+        if (_calendarDashboardViewModel is null)
         {
             return;
         }
 
         if (_calendarPopupWindow is { IsVisible: true })
         {
-            _calendarPopupWindow.Close();
+            _calendarPopupWindow.Hide();
             return;
         }
 
         ShowCalendar();
     }
 
-    private void ShowCalendar()
+    private async void ShowCalendar()
     {
-        if (_calendarPopupViewModel is null)
+        if (_calendarDashboardViewModel is null)
         {
             return;
         }
@@ -253,10 +292,14 @@ public partial class App : System.Windows.Application
 
         if (_calendarPopupWindow is null)
         {
-            _calendarPopupWindow = new CalendarPopupWindow(_calendarPopupViewModel);
-            _calendarPopupWindow.Closed += (_, _) => _calendarPopupWindow = null;
+            _calendarPopupWindow = new CalendarPopupWindow(_calendarDashboardViewModel);
+            _calendarPopupWindow.AddBirthdayRequested += date => ShowBirthdayEditor(date);
+            _calendarPopupWindow.AddAnniversaryRequested += date => ShowAnniversaryEditor(date);
+            _calendarPopupWindow.SettingsRequested += ShowSettings;
+            _calendarPopupWindow.UpcomingEventRequested += OpenUpcomingEvent;
         }
 
+        await _calendarDashboardViewModel.SelectDateAsync(DateOnly.FromDateTime(DateTime.Today));
         _calendarPopupWindow.Show();
         _calendarPopupWindow.Activate();
     }
@@ -270,6 +313,52 @@ public partial class App : System.Windows.Application
     }
 
     private void ShowBirthdayManager() => _birthdayManagerHost?.Show();
+
+    private void ShowBirthdayEditor(DateOnly date, Birthday? birthday = null)
+    {
+        var viewModel = new BirthdayEditorViewModel(
+            BirthdayRepository,
+            birthday: birthday,
+            defaultDate: date);
+        viewModel.Saved += _ => RefreshDashboard();
+        var window = new BirthdayEditorWindow(viewModel) { Owner = _calendarPopupWindow };
+        window.ShowDialog();
+    }
+
+    private void ShowAnniversaryEditor(DateOnly date, Anniversary? anniversary = null)
+    {
+        var viewModel = new AnniversaryEditorViewModel(
+            AnniversaryRepository,
+            anniversary: anniversary,
+            defaultDate: date);
+        viewModel.Saved += _ => RefreshDashboard();
+        var window = new AnniversaryEditorWindow(viewModel) { Owner = _calendarPopupWindow };
+        window.ShowDialog();
+    }
+
+    private async void OpenUpcomingEvent(UpcomingEventViewModel item)
+    {
+        if (item.SubjectId is not { } id) return;
+        if (item.Kind == UpcomingEventKind.Birthday)
+        {
+            var birthday = await BirthdayRepository.GetAsync(id, CancellationToken.None);
+            if (birthday is not null) ShowBirthdayEditor(item.Date, birthday);
+        }
+        else if (item.Kind == UpcomingEventKind.Anniversary)
+        {
+            var anniversary = await AnniversaryRepository.GetAsync(id, CancellationToken.None);
+            if (anniversary is not null) ShowAnniversaryEditor(item.Date, anniversary);
+        }
+    }
+
+    private async void RefreshDashboard()
+    {
+        if (_calendarDashboardViewModel is null) return;
+        var selectedDate = _calendarDashboardViewModel.SelectedDate;
+        await _calendarDashboardViewModel.Calendar.LoadMonthAsync(
+            _calendarDashboardViewModel.Calendar.DisplayMonth);
+        await _calendarDashboardViewModel.SelectDateAsync(selectedDate);
+    }
 
     private void ShowSettings() => _settingsHost?.Show();
 
@@ -458,5 +547,12 @@ public partial class App : System.Windows.Application
             FileName = path,
             UseShellExecute = true
         });
+    }
+
+    private sealed class EmptyHistoryTodayProvider : IHistoryTodayProvider
+    {
+        public static EmptyHistoryTodayProvider Instance { get; } = new();
+
+        public IReadOnlyList<HistoryTodayEntry> GetEntries(DateOnly date) => [];
     }
 }

@@ -27,10 +27,15 @@ public sealed class BirthdayEditorViewModel : INotifyPropertyChanged
     public BirthdayEditorViewModel(
         IBirthdayRepository birthdayRepository,
         Func<int, int, int, bool, bool>? lunarDateValidator = null,
-        Birthday? birthday = null)
+        Birthday? birthday = null,
+        DateOnly? defaultDate = null)
     {
         _birthdayRepository = birthdayRepository;
         _lunarDateValidator = lunarDateValidator ?? ValidateLunarDate;
+        var initialDate = defaultDate ?? DateOnly.FromDateTime(DateTime.Today);
+        _birthYearText = initialDate.Year.ToString(CultureInfo.InvariantCulture);
+        _monthText = initialDate.Month.ToString(CultureInfo.InvariantCulture);
+        _dayText = initialDate.Day.ToString(CultureInfo.InvariantCulture);
 
         if (birthday is null)
         {

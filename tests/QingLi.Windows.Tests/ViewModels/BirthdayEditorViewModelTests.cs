@@ -216,6 +216,19 @@ public sealed class BirthdayEditorViewModelTests
     }
 
     [Fact]
+    public void NewBirthdayCanDefaultToSelectedCalendarDate()
+    {
+        var vm = new BirthdayEditorViewModel(
+            new RecordingBirthdayRepository(),
+            (_, _, _, _) => true,
+            defaultDate: new DateOnly(2026, 7, 15));
+
+        Assert.Equal("2026", vm.BirthYearText);
+        Assert.Equal("7", vm.MonthText);
+        Assert.Equal("15", vm.DayText);
+    }
+
+    [Fact]
     public async Task Save_failure_sets_error_message_and_does_not_clear_window_state()
     {
         var repository = new RecordingBirthdayRepository

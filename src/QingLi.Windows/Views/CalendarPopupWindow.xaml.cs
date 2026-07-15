@@ -2,8 +2,13 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using QingLi.Windows.ViewModels;
 using WpfButton = System.Windows.Controls.Button;
+using FormsCursor = System.Windows.Forms.Cursor;
+using FormsScreen = System.Windows.Forms.Screen;
+using WpfPoint = System.Windows.Point;
+using WpfSize = System.Windows.Size;
 
 namespace QingLi.Windows.Views;
 
@@ -12,12 +17,6 @@ public partial class CalendarPopupWindow : Window
     private readonly CalendarPopupDeactivationGuard _deactivationGuard = new(TimeSpan.FromMilliseconds(750));
 
     public CalendarPopupWindow(CalendarDashboardViewModel viewModel)
-    {
-        InitializeComponent();
-        DataContext = viewModel;
-    }
-
-    public CalendarPopupWindow(CalendarPopupViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;
@@ -34,7 +33,7 @@ public partial class CalendarPopupWindow : Window
     {
         if (e.Key == Key.Escape)
         {
-            Close();
+            Hide();
             e.Handled = true;
             return;
         }
@@ -72,7 +71,7 @@ public partial class CalendarPopupWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        PositionInWorkArea();
+        PositionNearClickedTaskbar();
         Activate();
         Focus();
         _deactivationGuard.MarkShown();
@@ -80,7 +79,7 @@ public partial class CalendarPopupWindow : Window
 
     private void OnDeactivated(object sender, EventArgs e)
     {
-        if (_deactivationGuard.ShouldClose()) Close();
+        if (_deactivationGuard.ShouldClose()) Hide();
     }
 
     private async void OnCalendarSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -108,10 +107,28 @@ public partial class CalendarPopupWindow : Window
     private void OnAddAnniversaryClick(object sender, RoutedEventArgs e) => AddAnniversaryRequested?.Invoke(ViewModel?.SelectedDate ?? DateOnly.FromDateTime(DateTime.Today));
     private void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
 
-    private void PositionInWorkArea()
+    private void PositionNearClickedTaskbar()
     {
-        var workArea = SystemParameters.WorkArea;
-        Left = Math.Max(workArea.Left, workArea.Right - Width - 12);
-        Top = Math.Max(workArea.Top, workArea.Bottom - Height - 12);
+        try
+        {
+            var cursor = FormsCursor.Position;
+            var screen = FormsScreen.FromPoint(cursor);
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var workArea = new Rect(
+                screen.WorkingArea.Left / dpi.DpiScaleX,
+                screen.WorkingArea.Top / dpi.DpiScaleY,
+                screen.WorkingArea.Width / dpi.DpiScaleX,
+                screen.WorkingArea.Height / dpi.DpiScaleY);
+            var anchor = new WpfPoint(cursor.X / dpi.DpiScaleX, cursor.Y / dpi.DpiScaleY);
+            var placement = CalendarPopupPlacement.Calculate(workArea, new WpfSize(Width, Height), anchor);
+            Left = placement.Left;
+            Top = placement.Top;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            var workArea = SystemParameters.WorkArea;
+            Left = Math.Max(workArea.Left, workArea.Right - Width - 12);
+            Top = Math.Max(workArea.Top, workArea.Bottom - Height - 12);
+        }
     }
 }
