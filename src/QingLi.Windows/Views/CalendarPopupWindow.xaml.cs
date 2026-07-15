@@ -17,13 +17,30 @@ namespace QingLi.Windows.Views;
 public partial class CalendarPopupWindow : Window
 {
     private const int WmNcHitTest = 0x0084;
+    private const double DefaultPopupWidth = 1040;
+    private const double DefaultPopupHeight = 520;
+    private const double VisibleDragHeight = 28;
     private readonly CalendarPopupDeactivationGuard _deactivationGuard = new(TimeSpan.FromMilliseconds(750));
+    private readonly CalendarPopupLayoutSession _layoutSession;
     private HwndSource? _hwndSource;
+    private bool _applyingLayout;
+    private bool _layoutInitialized;
+    private Task? _layoutRestoreTask;
 
-    public CalendarPopupWindow(CalendarDashboardViewModel viewModel)
+    public CalendarPopupWindow(
+        CalendarDashboardViewModel viewModel,
+        ICalendarPopupLayoutStore layoutStore)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(layoutStore);
+
         InitializeComponent();
         DataContext = viewModel;
+        _layoutSession = new CalendarPopupLayoutSession(
+            layoutStore,
+            GetWorkAreasInDips,
+            GetFallbackWorkAreaInDips);
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     public event Action<DateOnly>? AddBirthdayRequested;
@@ -44,7 +61,30 @@ public partial class CalendarPopupWindow : Window
     {
         _hwndSource?.RemoveHook(OnWindowMessage);
         _hwndSource = null;
+        IsVisibleChanged -= OnIsVisibleChanged;
+        _layoutInitialized = false;
+        _layoutSession.Dispose();
         base.OnClosed(e);
+    }
+
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        RecordCurrentLayout();
+    }
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        RecordCurrentLayout();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true && IsLoaded && !_layoutInitialized)
+        {
+            _ = EnsureLayoutRestoredAsync();
+        }
     }
 
     private nint OnWindowMessage(
@@ -121,9 +161,13 @@ public partial class CalendarPopupWindow : Window
         }
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        PositionNearClickedTaskbar();
+        if (!_layoutInitialized)
+        {
+            await EnsureLayoutRestoredAsync();
+        }
+
         Activate();
         Focus();
         _deactivationGuard.MarkShown();
@@ -173,28 +217,174 @@ public partial class CalendarPopupWindow : Window
     private void OnAddAnniversaryClick(object sender, RoutedEventArgs e) => AddAnniversaryRequested?.Invoke(ViewModel?.SelectedDate ?? DateOnly.FromDateTime(DateTime.Today));
     private void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
 
-    private void PositionNearClickedTaskbar()
+    public async Task ResetLayoutAsync()
+    {
+        await _layoutSession.ResetAsync();
+        _layoutInitialized = false;
+
+        _applyingLayout = true;
+        try
+        {
+            Width = DefaultPopupWidth;
+            Height = DefaultPopupHeight;
+        }
+        finally
+        {
+            _applyingLayout = false;
+        }
+
+        if (IsVisible)
+        {
+            await EnsureLayoutRestoredAsync();
+        }
+    }
+
+    private Task EnsureLayoutRestoredAsync()
+    {
+        if (_layoutInitialized)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_layoutRestoreTask is not null)
+        {
+            return _layoutRestoreTask;
+        }
+
+        var restoreTask = RestoreLayoutAsync();
+        if (restoreTask.IsCompleted)
+        {
+            return restoreTask;
+        }
+
+        _layoutRestoreTask = restoreTask;
+        _ = ClearRestoreTaskWhenCompleteAsync(restoreTask);
+        return restoreTask;
+    }
+
+    private async Task ClearRestoreTaskWhenCompleteAsync(Task restoreTask)
+    {
+        try
+        {
+            await restoreTask;
+        }
+        finally
+        {
+            if (ReferenceEquals(_layoutRestoreTask, restoreTask))
+            {
+                _layoutRestoreTask = null;
+            }
+        }
+    }
+
+    private async Task RestoreLayoutAsync()
+    {
+        var defaultBounds = PositionNearClickedTaskbar();
+        Rect bounds;
+        try
+        {
+            bounds = await _layoutSession.InitializeAsync(
+                defaultBounds,
+                new WpfSize(MinWidth, MinHeight),
+                VisibleDragHeight);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            bounds = defaultBounds;
+        }
+
+        _applyingLayout = true;
+        try
+        {
+            Left = bounds.Left;
+            Top = bounds.Top;
+            Width = bounds.Width;
+            Height = bounds.Height;
+            _layoutInitialized = true;
+        }
+        finally
+        {
+            _applyingLayout = false;
+        }
+    }
+
+    private void RecordCurrentLayout()
+    {
+        if (_applyingLayout || !_layoutInitialized)
+        {
+            return;
+        }
+
+        _layoutSession.RecordLayoutChange(new Rect(Left, Top, ActualWidth, ActualHeight));
+    }
+
+    private Rect PositionNearClickedTaskbar()
     {
         try
         {
             var cursor = FormsCursor.Position;
-            var screen = FormsScreen.FromPoint(cursor);
-            var dpi = VisualTreeHelper.GetDpi(this);
-            var workArea = new Rect(
-                screen.WorkingArea.Left / dpi.DpiScaleX,
-                screen.WorkingArea.Top / dpi.DpiScaleY,
-                screen.WorkingArea.Width / dpi.DpiScaleX,
-                screen.WorkingArea.Height / dpi.DpiScaleY);
-            var anchor = new WpfPoint(cursor.X / dpi.DpiScaleX, cursor.Y / dpi.DpiScaleY);
-            var placement = CalendarPopupPlacement.Calculate(workArea, new WpfSize(Width, Height), anchor);
-            Left = placement.Left;
-            Top = placement.Top;
+            var (scaleX, scaleY) = GetWindowDpiScale();
+            var workArea = GetFallbackWorkAreaInDips();
+            var anchor = new WpfPoint(cursor.X / scaleX, cursor.Y / scaleY);
+            return CalendarPopupPlacement.Calculate(
+                workArea,
+                new WpfSize(DefaultPopupWidth, DefaultPopupHeight),
+                anchor);
         }
         catch (ArgumentOutOfRangeException)
         {
             var workArea = SystemParameters.WorkArea;
-            Left = Math.Max(workArea.Left, workArea.Right - Width - 12);
-            Top = Math.Max(workArea.Top, workArea.Bottom - Height - 12);
+            return new Rect(
+                Math.Max(workArea.Left, workArea.Right - DefaultPopupWidth - 12),
+                Math.Max(workArea.Top, workArea.Bottom - DefaultPopupHeight - 12),
+                DefaultPopupWidth,
+                DefaultPopupHeight);
         }
     }
+
+    private IReadOnlyList<Rect> GetWorkAreasInDips()
+    {
+        var (scaleX, scaleY) = GetWindowDpiScale();
+        return FormsScreen.AllScreens
+            .Select(screen => ToDips(screen.WorkingArea, scaleX, scaleY))
+            .ToArray();
+    }
+
+    private Rect GetFallbackWorkAreaInDips()
+    {
+        try
+        {
+            var screen = FormsScreen.FromPoint(FormsCursor.Position);
+            var (scaleX, scaleY) = GetWindowDpiScale();
+            return ToDips(screen.WorkingArea, scaleX, scaleY);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return SystemParameters.WorkArea;
+        }
+    }
+
+    private (double ScaleX, double ScaleY) GetWindowDpiScale()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        var dpi = handle == nint.Zero ? 0u : User32.GetDpiForWindow(handle);
+        if (dpi > 0)
+        {
+            var scale = dpi / 96d;
+            return (scale, scale);
+        }
+
+        var visualDpi = VisualTreeHelper.GetDpi(this);
+        return (visualDpi.DpiScaleX, visualDpi.DpiScaleY);
+    }
+
+    private static Rect ToDips(
+        System.Drawing.Rectangle bounds,
+        double scaleX,
+        double scaleY) =>
+        new(
+            bounds.Left / scaleX,
+            bounds.Top / scaleY,
+            bounds.Width / scaleX,
+            bounds.Height / scaleY);
 }

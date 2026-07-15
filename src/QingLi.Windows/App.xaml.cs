@@ -35,6 +35,7 @@ public partial class App : System.Windows.Application
 {
     private CalendarDashboardViewModel? _calendarDashboardViewModel;
     private CalendarPopupWindow? _calendarPopupWindow;
+    private ICalendarPopupLayoutStore? _calendarPopupLayoutStore;
     private TrayIconService? _trayIconService;
     private ISettingsStore? _settingsStore;
     private AppSettings _appSettings = AppSettings.Default;
@@ -70,6 +71,8 @@ public partial class App : System.Windows.Application
 
             _singleInstanceCoordinator.ActivationRequested += HandleActivationRequested;
             await InitializeSettingsAsync();
+            _calendarPopupLayoutStore = new JsonCalendarPopupLayoutStore(
+                Path.Combine(AppPaths.DataDirectory, "calendar-window-layout.json"));
             CreateClockReplacementServices();
 
             if (_clockReplacementCoordinator is not null)
@@ -268,7 +271,7 @@ public partial class App : System.Windows.Application
 
     private void ToggleCalendar()
     {
-        if (_calendarDashboardViewModel is null)
+        if (_calendarDashboardViewModel is null || _calendarPopupLayoutStore is null)
         {
             return;
         }
@@ -284,7 +287,7 @@ public partial class App : System.Windows.Application
 
     private async void ShowCalendar()
     {
-        if (_calendarDashboardViewModel is null)
+        if (_calendarDashboardViewModel is null || _calendarPopupLayoutStore is null)
         {
             return;
         }
@@ -297,7 +300,7 @@ public partial class App : System.Windows.Application
 
         if (_calendarPopupWindow is null)
         {
-            _calendarPopupWindow = new CalendarPopupWindow(_calendarDashboardViewModel);
+            _calendarPopupWindow = new CalendarPopupWindow(_calendarDashboardViewModel, _calendarPopupLayoutStore);
             _calendarPopupWindow.AddBirthdayRequested += date => ShowBirthdayEditor(date);
             _calendarPopupWindow.AddAnniversaryRequested += date => ShowAnniversaryEditor(date);
             _calendarPopupWindow.SettingsRequested += ShowSettings;

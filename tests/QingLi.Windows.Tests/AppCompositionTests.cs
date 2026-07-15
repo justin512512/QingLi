@@ -11,7 +11,9 @@ public sealed class AppCompositionTests
         Assert.Contains("JsonHistoryTodayProvider.LoadAsync", source);
         Assert.Contains("new UpcomingEventService", source);
         Assert.Contains("ResolvePackagePath", source);
-        Assert.Contains("new CalendarPopupWindow(_calendarDashboardViewModel)", source);
+        Assert.Contains("new JsonCalendarPopupLayoutStore(", source);
+        Assert.Contains("Path.Combine(AppPaths.DataDirectory, \"calendar-window-layout.json\")", source);
+        Assert.Contains("new CalendarPopupWindow(_calendarDashboardViewModel, _calendarPopupLayoutStore)", source);
         Assert.Contains("AddBirthdayRequested +=", source);
         Assert.Contains("AddAnniversaryRequested +=", source);
         Assert.Contains("SettingsRequested +=", source);

@@ -37,6 +37,26 @@ public sealed class CalendarPopupLayoutTests
     }
 
     [Fact]
+    public void PopupIntegratesPersistentLayoutSessionWithoutReplacingNativeResizeHook()
+    {
+        var source = File.ReadAllText(GetCodeBehindPath());
+
+        Assert.Contains("CalendarPopupWindow(", source);
+        Assert.Contains("ICalendarPopupLayoutStore layoutStore", source);
+        Assert.Contains("new CalendarPopupLayoutSession(", source);
+        Assert.Contains("_layoutInitialized", source);
+        Assert.Contains("InitializeAsync(", source);
+        Assert.Contains("RecordLayoutChange(", source);
+        Assert.Contains("ResetLayoutAsync", source);
+        Assert.Contains("OnIsVisibleChanged", source);
+        Assert.Contains("EnsureLayoutRestoredAsync", source);
+        Assert.Contains("FormsScreen.AllScreens", source);
+        Assert.Contains("GetDpiForWindow", source);
+        Assert.Contains("_layoutSession.Dispose()", source);
+        Assert.Contains("_hwndSource?.AddHook(OnWindowMessage)", source);
+    }
+
+    [Fact]
     public void PopupExposesOnlyATopStripAsTheDragSurface()
     {
         var document = XDocument.Load(GetXamlPath());
@@ -122,6 +142,9 @@ public sealed class CalendarPopupLayoutTests
 
     private static string GetXamlPath() => Path.Combine(
         GetRepositoryRoot(), "src", "QingLi.Windows", "Views", "CalendarPopupWindow.xaml");
+
+    private static string GetCodeBehindPath() => Path.Combine(
+        GetRepositoryRoot(), "src", "QingLi.Windows", "Views", "CalendarPopupWindow.xaml.cs");
 
     private static string GetRepositoryRoot() => Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
