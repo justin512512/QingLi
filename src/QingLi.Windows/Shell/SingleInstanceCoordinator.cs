@@ -46,12 +46,12 @@ public sealed class SingleInstanceCoordinator(string applicationName) : IAsyncDi
 
     public async ValueTask DisposeAsync()
     {
-        await _shutdown.CancelAsync();
+        await _shutdown.CancelAsync().ConfigureAwait(false);
         if (_listener is not null)
         {
             try
             {
-                await _listener;
+                await _listener.ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -73,16 +73,16 @@ public sealed class SingleInstanceCoordinator(string applicationName) : IAsyncDi
                 1,
                 PipeTransmissionMode.Byte,
                 PipeOptions.Asynchronous);
-            await pipe.WaitForConnectionAsync(cancellationToken);
+            await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var reader = new StreamReader(pipe, Encoding.UTF8);
-            var command = await reader.ReadLineAsync(cancellationToken);
+            var command = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (command is null)
             {
                 continue;
             }
 
             ActivationRequested?.Invoke(command);
-            await _activations.Writer.WriteAsync(command, cancellationToken);
+            await _activations.Writer.WriteAsync(command, cancellationToken).ConfigureAwait(false);
         }
     }
 }
