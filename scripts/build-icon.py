@@ -35,7 +35,11 @@ def main() -> None:
     with OUTPUT.open("wb") as icon_file:
         icon_file.write(struct.pack("<HHH", 0, 1, len(encoded_frames)))
         for size, encoded_frame in zip(SIZES, encoded_frames, strict=True):
-            directory_dimension = 0 if size == 256 else size
+            # System.Drawing's ICO selector compares the raw directory byte and
+            # treats the spec's 0 (= 256) sentinel as zero. Advertising the
+            # 256px PNG as 255px makes it the closest match for a 256px request;
+            # the selected image still reports its true 256x256 payload size.
+            directory_dimension = 255 if size == 256 else size
             icon_file.write(
                 struct.pack(
                     "<BBBBHHII",

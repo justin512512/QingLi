@@ -14,12 +14,9 @@ public sealed class TrayIconServiceTests
 
         Assert.True(File.Exists(source));
         Assert.True(File.Exists(ico));
-        using var icon = new Icon(ico);
-        Assert.NotEqual(IntPtr.Zero, icon.Handle);
-
-        var iconBytes = File.ReadAllBytes(ico);
-        Assert.Equal(0, iconBytes[6]);
-        Assert.Equal(0, iconBytes[7]);
+        using var icon = new Icon(ico, 256, 256);
+        Assert.Equal(256, icon.Width);
+        Assert.Equal(256, icon.Height);
     }
 
     [Fact]
