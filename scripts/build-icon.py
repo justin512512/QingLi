@@ -1,3 +1,4 @@
+# Install: E:\...\python -m pip install -r scripts/requirements-icon.txt
 from io import BytesIO
 from pathlib import Path
 import struct
