@@ -1,11 +1,32 @@
 using System.Buffers.Binary;
 using System.Drawing;
+using System.Xml.Linq;
 using QingLi.Windows.Tray;
 
 namespace QingLi.Windows.Tests.Tray;
 
 public sealed class TrayIconServiceTests
 {
+    [Fact]
+    public void Project_files_assign_the_brand_icon()
+    {
+        var root = GetRepositoryRoot();
+        var windowsProject = XDocument.Load(Path.Combine(
+            root, "src", "QingLi.Windows", "QingLi.Windows.csproj"));
+        var recoveryProject = XDocument.Load(Path.Combine(
+            root, "src", "QingLi.Recovery", "QingLi.Recovery.csproj"));
+
+        Assert.Equal(
+            @"Assets\Brand\QingLi.ico",
+            windowsProject.Descendants("ApplicationIcon").Single().Value);
+        Assert.Contains(
+            windowsProject.Descendants("Resource"),
+            resource => (string?)resource.Attribute("Include") == @"Assets\Brand\QingLi.ico");
+        Assert.Equal(
+            @"..\QingLi.Windows\Assets\Brand\QingLi.ico",
+            recoveryProject.Descendants("ApplicationIcon").Single().Value);
+    }
+
     [Fact]
     public void Brand_icon_assets_exist_and_primary_frame_is_256_pixels()
     {

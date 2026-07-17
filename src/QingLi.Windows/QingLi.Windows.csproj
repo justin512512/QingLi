@@ -6,6 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\Brand\QingLi.ico" />
     <Content Include="Assets\Holidays\cn-2026.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -21,6 +22,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\Brand\QingLi.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>

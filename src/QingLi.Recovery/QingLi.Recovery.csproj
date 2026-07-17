@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>QingLi.Recovery</AssemblyName>
+    <ApplicationIcon>..\QingLi.Windows\Assets\Brand\QingLi.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\QingLi.Infrastructure\QingLi.Infrastructure.csproj" />
