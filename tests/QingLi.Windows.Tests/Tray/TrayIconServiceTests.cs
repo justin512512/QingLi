@@ -1,9 +1,27 @@
+using System.Drawing;
 using QingLi.Windows.Tray;
 
 namespace QingLi.Windows.Tests.Tray;
 
 public sealed class TrayIconServiceTests
 {
+    [Fact]
+    public void Brand_icon_assets_exist_and_primary_frame_is_256_pixels()
+    {
+        var root = GetRepositoryRoot();
+        var source = Path.Combine(root, "src", "QingLi.Windows", "Assets", "Brand", "qingli-app-icon-source.png");
+        var ico = Path.Combine(root, "src", "QingLi.Windows", "Assets", "Brand", "QingLi.ico");
+
+        Assert.True(File.Exists(source));
+        Assert.True(File.Exists(ico));
+        using var icon = new Icon(ico);
+        Assert.NotEqual(IntPtr.Zero, icon.Handle);
+
+        var iconBytes = File.ReadAllBytes(ico);
+        Assert.Equal(0, iconBytes[6]);
+        Assert.Equal(0, iconBytes[7]);
+    }
+
     [Fact]
     public void Default_tray_icon_is_branded_instead_of_the_generic_Windows_application_icon()
     {
