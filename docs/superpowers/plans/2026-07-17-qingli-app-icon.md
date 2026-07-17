@@ -71,7 +71,9 @@ git commit -m "design: add QingLi calendar moon icon"
 
 - [ ] **Step 1: Write a failing asset validation test**
 
-Add a test that resolves `src/QingLi.Windows/Assets/Brand/QingLi.ico`, opens it with `System.Drawing.Icon`, and asserts both `Width` and `Height` are 256. Also assert the source PNG exists.
+Add a test that resolves `src/QingLi.Windows/Assets/Brand/QingLi.ico`, verifies it can be opened with `System.Drawing.Icon`, and asserts the source PNG exists. Parse the ICO directory directly, mapping the standard zero width/height byte to 256, and parse every embedded PNG IHDR. Assert that both the directory and payload dimensions contain exactly 16, 20, 24, 32, 40, 48, 64, 128, and 256 pixels.
+
+Do not use the frame selected by `new Icon(ico, 256, 256)` to validate the 256px asset. On the supported .NET 8/Windows path, `System.Drawing` compares the raw ICO directory byte and may treat the standard `0 = 256` sentinel as zero during frame selection, returning the 128px frame even though a valid 256px frame is present. Direct directory and PNG IHDR parsing validates the file format without depending on that selector defect.
 
 ```csharp
 [Fact]
@@ -83,9 +85,11 @@ public void Brand_icon_assets_exist_and_primary_frame_is_256_pixels()
 
     Assert.True(File.Exists(source));
     Assert.True(File.Exists(ico));
-    using var icon = new Icon(ico, 256, 256);
-    Assert.Equal(256, icon.Width);
-    Assert.Equal(256, icon.Height);
+    using var icon = new Icon(ico);
+    Assert.NotEqual(IntPtr.Zero, icon.Handle);
+
+    // Parse all ICO directory entries (0 means 256) and each PNG IHDR.
+    // Assert both dimension sets equal the nine required standard sizes.
 }
 ```
 

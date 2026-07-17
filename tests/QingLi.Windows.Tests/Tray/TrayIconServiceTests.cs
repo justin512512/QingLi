@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Drawing;
 using QingLi.Windows.Tray;
 
@@ -14,9 +15,39 @@ public sealed class TrayIconServiceTests
 
         Assert.True(File.Exists(source));
         Assert.True(File.Exists(ico));
-        using var icon = new Icon(ico, 256, 256);
-        Assert.Equal(256, icon.Width);
-        Assert.Equal(256, icon.Height);
+        using var icon = new Icon(ico);
+        Assert.NotEqual(IntPtr.Zero, icon.Handle);
+
+        var bytes = File.ReadAllBytes(ico);
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(0, 2)));
+        Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(2, 2)));
+        var frameCount = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(4, 2));
+        Assert.Equal((ushort)9, frameCount);
+
+        var expectedSizes = new[] { 16, 20, 24, 32, 40, 48, 64, 128, 256 };
+        var directorySizes = new List<int>(frameCount);
+        var payloadSizes = new List<int>(frameCount);
+        for (var index = 0; index < frameCount; index++)
+        {
+            var entry = bytes.AsSpan(6 + (index * 16), 16);
+            var directoryWidth = entry[0] == 0 ? 256 : entry[0];
+            var directoryHeight = entry[1] == 0 ? 256 : entry[1];
+            Assert.Equal(directoryWidth, directoryHeight);
+
+            var payloadOffset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(entry[12..16]));
+            var png = bytes.AsSpan(payloadOffset);
+            Assert.Equal(new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a }, png[..8].ToArray());
+            var payloadWidth = checked((int)BinaryPrimitives.ReadUInt32BigEndian(png[16..20]));
+            var payloadHeight = checked((int)BinaryPrimitives.ReadUInt32BigEndian(png[20..24]));
+            Assert.Equal(payloadWidth, payloadHeight);
+            Assert.Equal(directoryWidth, payloadWidth);
+
+            directorySizes.Add(directoryWidth);
+            payloadSizes.Add(payloadWidth);
+        }
+
+        Assert.Equal(expectedSizes, directorySizes.Order());
+        Assert.Equal(expectedSizes, payloadSizes.Order());
     }
 
     [Fact]
