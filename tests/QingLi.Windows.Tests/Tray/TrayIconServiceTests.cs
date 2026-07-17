@@ -81,14 +81,32 @@ public sealed class TrayIconServiceTests
         Assert.DoesNotContain("SystemIcons.Application", source);
     }
 
-    [Fact]
-    public void Tray_icon_is_loaded_from_the_embedded_Wpf_resource_and_matches_the_32_pixel_frame()
+    [Theory]
+    [InlineData(96, 16)]
+    [InlineData(120, 20)]
+    [InlineData(144, 24)]
+    [InlineData(192, 32)]
+    [InlineData(240, 40)]
+    [InlineData(288, 48)]
+    public void Tray_icon_size_tracks_system_Dpi(int dpi, int expectedSize)
+    {
+        Assert.Equal(expectedSize, QingLiTrayIcon.SelectIconSize(dpi));
+    }
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(20)]
+    [InlineData(24)]
+    [InlineData(32)]
+    [InlineData(40)]
+    [InlineData(48)]
+    public void Tray_icon_is_loaded_from_the_embedded_Wpf_resource_and_matches_the_requested_frame(int size)
     {
         var ico = Path.Combine(
             GetRepositoryRoot(), "src", "QingLi.Windows", "Assets", "Brand", "QingLi.ico");
 
-        using var actual = QingLiTrayIcon.Create();
-        using var expected = new Icon(ico, 32, 32);
+        using var actual = QingLiTrayIcon.Create(size);
+        using var expected = new Icon(ico, size, size);
 
         Assert.NotEqual(IntPtr.Zero, actual.Handle);
         Assert.Equal(GetPixels(expected), GetPixels(actual));
@@ -101,7 +119,7 @@ public sealed class TrayIconServiceTests
             GetRepositoryRoot(), "src", "QingLi.Windows", "Assets", "Brand", "QingLi.ico");
         var stream = new MemoryStream(File.ReadAllBytes(ico));
 
-        using var icon = QingLiTrayIcon.Create(() => stream);
+        using var icon = QingLiTrayIcon.Create(32, () => stream);
 
         Assert.False(stream.CanRead);
         Assert.NotEqual(IntPtr.Zero, icon.Handle);
@@ -210,8 +228,7 @@ public sealed class TrayIconServiceTests
     private static int[] GetPixels(Icon icon)
     {
         using var bitmap = icon.ToBitmap();
-        Assert.Equal(32, bitmap.Width);
-        Assert.Equal(32, bitmap.Height);
+        Assert.Equal(bitmap.Width, bitmap.Height);
 
         return Enumerable.Range(0, bitmap.Height)
             .SelectMany(y => Enumerable.Range(0, bitmap.Width).Select(x => bitmap.GetPixel(x, y).ToArgb()))
